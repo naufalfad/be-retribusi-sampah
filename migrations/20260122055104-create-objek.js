@@ -33,7 +33,13 @@ module.exports = {
       alamat_objek: {
         type: Sequelize.STRING
       },
+      rt_rw_objek: {
+        type: Sequelize.STRING
+      },
       telepon_objek: {
+        type: Sequelize.STRING
+      },
+      provinsi_objek: {
         type: Sequelize.STRING
       },
       kabupaten_objek: {

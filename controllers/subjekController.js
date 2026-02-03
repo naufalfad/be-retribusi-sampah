@@ -1,67 +1,89 @@
 require('dotenv').config();
-const { Subjek, Objek } = require('../models');
+const { Subjek, Objek, sequelize, DokumenSubjek } = require('../models');
 const bcrypt = require('bcrypt');
 const path = require('path');
 const { Op } = require('sequelize');
 
 exports.createSubjek = async (req, res) => {
+    const transaction = await sequelize.transaction();
     try {
-        const idStaffLogin = req.auth.id_staff;
         const {
-            nama_subjek,
-            nik_subjek,
-            telepon_subjek,
-            email_subjek,
-            alamat_subjek,
-            rt_rw_subjek,
-            kabupaten_subjek,
-            kecamatan_subjek,
-            kelurahan_subjek,
-            kode_pos_subjek,
-            password_subjek,
-            npwrd_subjek
+            kategori_subjek, nama_subjek, penanggung_jawab_subjek, npwp_subjek, nik_subjek,
+            telepon_subjek, email_subjek, alamat_subjek, rt_rw_subjek, provinsi_subjek,
+            kabupaten_subjek, kecamatan_subjek, kelurahan_subjek, kode_pos_subjek,
+            password_subjek
         } = req.body;
-
-        const dokumen_subjek_path = req.file ? req.file.path : null
-
-        if (!dokumen_subjek_path) {
-            return res.status(400).json({ message: 'Dokumen subjek harus diupload.' });
-        }
-
+        const idStaffLogin = req.auth.id_staff;
         const hashedPassword = await bcrypt.hash(password_subjek, 10);
+        const npwrdGenerated = await generateNPWRD();
         const newSubjek = await Subjek.create({
             id_staff: idStaffLogin,
+            kategori_subjek,
             nama_subjek,
+            penanggung_jawab_subjek: penanggung_jawab_subjek || null,
+            npwp_subjek: npwp_subjek || null,
             nik_subjek,
             telepon_subjek,
             email_subjek,
             alamat_subjek,
             rt_rw_subjek,
+            provinsi_subjek,
             kabupaten_subjek,
             kecamatan_subjek,
             kelurahan_subjek,
             kode_pos_subjek,
-            dokumen_subjek: dokumen_subjek_path,
             password_subjek: hashedPassword,
-            npwrd_subjek,
+            npwrd_subjek: npwrdGenerated,
             status_subjek: 'Aktif'
-        })
+        }, { transaction });
+
+        const dokumenData = req.files?.map(file => ({
+            id_subjek: newSubjek.id_subjek,
+            file_path: file.path,
+        })) || [];
+
+        if (dokumenData.length > 0) {
+            await DokumenSubjek.bulkCreate(dokumenData, { transaction });
+        }
+
+        await transaction.commit();
 
         res.status(201).json({
             message: 'NPWRD berhasil dibuat',
-            data: newSubjek,
+            data: {
+                newSubjek,
+                npwrd: newSubjek.npwrd_subjek,
+                nama: newSubjek.nama_subjek,
+                jumlah_dokumen: dokumenData.length
+            }
         });
+
     } catch (error) {
+        if (transaction) await transaction.rollback();
         console.error(error);
-        if (req.file) {
-            const fs = require('fs');
-            fs.unlink(req.file.path, (err) => {
-                if (err) console.error("Gagal menghapus file yang terupload:", err);
-            });
-        }
         res.status(500).json({ message: error.message });
     }
-}
+};
+
+const generateNPWRD = async () => {
+    const year = new Date().getFullYear();
+
+    const lastSubjek = await Subjek.findOne({
+        order: [['createdAt', 'DESC']]
+    });
+
+    let lastNumber = 0;
+
+    if (lastSubjek && lastSubjek.npwrd_subjek) {
+        const lastNPWRD = lastSubjek.npwrd_subjek;
+        const split = lastNPWRD.split('-');
+        lastNumber = parseInt(split[2]) || 0;
+    }
+
+    const nextNumber = (lastNumber + 1).toString().padStart(6, '0');
+
+    return `NPWRD-${year}-${nextNumber}`;
+};
 
 exports.getDokumenSubjek = async (req, res) => {
     try {

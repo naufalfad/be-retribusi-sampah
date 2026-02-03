@@ -1,5 +1,8 @@
 require('dotenv').config();
-const { Objek, DokumenObjek, sequelize } = require('../models');
+const { Op } = require('sequelize');
+const { RefProvinsi, RefKabupaten, RefKecamatan, RefKelurahan, RefKodepos,
+    Objek, DokumenObjek, Kelas, Subjek, sequelize } = require('../models');
+const { findOrCreateByName } = require('../utils/refHelper');
 
 exports.createObjek = async (req, res) => {
     // 1. Validasi awal di luar transaksi agar tidak membebani DB
@@ -21,22 +24,70 @@ exports.createObjek = async (req, res) => {
     const transaction = await sequelize.transaction();
 
     try {
-        // 2. Gunakan console.time untuk debug bagian mana yang lambat
+        const {
+            id_kelas, kategori_objek, nama_objek, alamat_objek, rt_rw_objek, telepon_objek,
+            provinsi_objek, kabupaten_objek, kecamatan_objek, kelurahan_objek,
+            kode_pos_objek
+        } = req.body;
+
+        // const provinsi = await findOrCreateByName(
+        //     RefProvinsi,
+        //     provinsi_objek,
+        //     {},
+        //     transaction
+        // );
+
+        // const kabupaten = await findOrCreateByName(
+        //     RefKabupaten,
+        //     kabupaten_objek,
+        //     provinsi ? { id_provinsi: provinsi.id } : {},
+        //     transaction
+        // );
+
+        // const kecamatan = await findOrCreateByName(
+        //     RefKecamatan,
+        //     kecamatan_objek,
+        //     kabupaten ? { id_kabupaten: kabupaten.id } : {},
+        //     transaction
+        // );
+
+        // const kelurahan = await findOrCreateByName(
+        //     RefKelurahan,
+        //     kelurahan_objek,
+        //     kecamatan ? { id_kecamatan: kecamatan.id } : {},
+        //     transaction
+        // );
+
+        // await findOrCreateByName(
+        //     RefKodepos,
+        //     kode_pos_objek,
+        //     kelurahan ? { id_kelurahan: kelurahan.id } : {},
+        //     transaction
+        // );
+
+        const kelas = await Kelas.findByPk(id_kelas, {
+            attributes: ['id_kelas', 'tarif_kelas']
+        });
+        const tarif = kelas?.tarif_kelas ?? null;
+
+        const nporGenerated = await generateNPOR();
         console.time("DB_Insert_Objek");
         const newObjek = await Objek.create({
             id_subjek,
-            id_kelas: req.body.id_kelas,
-            npor_objek: req.body.npor_objek,
-            kategori_objek: req.body.kategori_objek,
-            nama_objek: req.body.nama_objek,
-            alamat_objek: req.body.alamat_objek,
-            telepon_objek: req.body.telepon_objek,
-            kabupaten_objek: req.body.kabupaten_objek,
-            kecamatan_objek: req.body.kecamatan_objek,
-            kelurahan_objek: req.body.kelurahan_objek,
-            kode_pos_objek: req.body.kode_pos_objek,
+            id_kelas,
+            npor_objek: nporGenerated,
+            kategori_objek,
+            nama_objek,
+            alamat_objek,
+            rt_rw_objek,
+            telepon_objek,
+            provinsi_objek,
+            kabupaten_objek,
+            kecamatan_objek,
+            kelurahan_objek,
+            kode_pos_objek,
             koordinat_objek: koordinat,
-            tarif_pokok: null
+            tarif_pokok: tarif
         }, { transaction });
         console.timeEnd("DB_Insert_Objek");
 
@@ -70,6 +121,26 @@ exports.createObjek = async (req, res) => {
     }
 };
 
+const generateNPOR = async () => {
+    const year = new Date().getFullYear();
+
+    const lastObjek = await Objek.findOne({
+        order: [['createdAt', 'DESC']]
+    });
+
+    let lastNumber = 0;
+
+    if (lastObjek && lastObjek.npor_objek) {
+        const lastNPOR = lastObjek.npor_objek;
+        const split = lastNPOR.split('-');
+        lastNumber = parseInt(split[2]) || 0;
+    }
+
+    const nextNumber = (lastNumber + 1).toString().padStart(6, '0');
+
+    return `NPOR-${year}-${nextNumber}`;
+};
+
 exports.getAllObjek = async (req, res) => {
     try {
         // Ambil parameter query untuk paginasi (opsional)
@@ -82,7 +153,7 @@ exports.getAllObjek = async (req, res) => {
             include: [
                 {
                     model: DokumenObjek,
-                    attributes: ['id_dokumen', 'file_path']
+                    attributes: ['id_dokumen_objek', 'file_path']
                 }
             ],
             limit: limit,
@@ -108,6 +179,91 @@ exports.getAllObjek = async (req, res) => {
         console.error("Error getAllObjek:", error);
         res.status(500).json({
             message: 'Terjadi kesalahan saat mengambil data',
+            error: error.message
+        });
+    }
+};
+
+exports.getAllKelas = async (req, res) => {
+    try {
+        const dataKelas = await Kelas.findAll({
+            attributes: [
+                'id_kelas', 'tarif_kelas', 'nama_kelas', 'deskripsi_kelas',
+                'pelayanan_1', 'tarif_pelayanan_1',
+                'pelayanan_2', 'tarif_pelayanan_2',
+                'pelayanan_3', 'tarif_pelayanan_3'
+            ],
+            order: [['id_kelas', 'ASC']]
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Data kelas berhasil diambil',
+            data: dataKelas
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: 'Gagal mengambil data kelas',
+            error: error.message
+        });
+    }
+};
+
+exports.getListObjek = async (req, res) => {
+    try {
+        // 1. Ambil query parameter untuk pagination & search
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const offset = (page - 1) * limit;
+
+        // 2. Eksekusi findAndCountAll
+        const { count, rows } = await Objek.findAndCountAll({
+            where: {
+                // Contoh filter pencarian berdasarkan nama_subjek
+                nama_objek: {
+                    [Op.iLike]: `%${search}%` // Gunakan Op.like jika menggunakan MySQL
+                }
+            },
+            include: [
+                {
+                    model: Subjek,
+                    attributes: ['id_subjek', 'nama_subjek']
+                },
+                {
+                    model: DokumenObjek,
+                    attributes: ['id_dokumen_objek', 'file_path']
+                }],
+            limit: limit,
+            offset: offset,
+            order: [['createdAt', 'DESC']], // Urutkan dari yang terbaru
+            distinct: true
+        });
+
+        // 3. Hitung metadata paginasi
+        const totalPages = Math.ceil(count / limit);
+
+        // 4. Kirim response
+        res.status(200).json({
+            status: 'success',
+            message: 'Daftar objek berhasil diambil',
+            pagination: {
+                total_items: count,
+                total_pages: totalPages,
+                current_page: page,
+                items_per_page: limit
+            },
+            data: rows
+        });
+
+    } catch (error) {
+        console.error("Error getListObjek:", error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Gagal mengambil data subjek',
             error: error.message
         });
     }

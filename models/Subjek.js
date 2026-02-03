@@ -4,14 +4,10 @@ const {
 } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class Subjek extends Model {
-    /**
-     * Helper method for defining associations.
-     * This method is not a part of Sequelize lifecycle.
-     * The `models/index` file will call this method automatically.
-     */
     static associate(models) {
       Subjek.hasMany(models.Objek, { foreignKey: 'id_subjek' });
       Subjek.belongsTo(models.Staff, { foreignKey: 'id_staff' });
+      Subjek.hasMany(models.DokumenSubjek, { foreignKey: 'id_subjek' });
     }
   }
   Subjek.init({
@@ -24,9 +20,21 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false
     },
+    kategori_subjek: {
+      type: DataTypes.ENUM('Pribadi', 'Badan'),
+      allowNull: false
+    },
     nama_subjek: {
       type: DataTypes.STRING,
       allowNull: false
+    },
+    penanggung_jawab_subjek: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    npwp_subjek: {
+      type: DataTypes.STRING,
+      allowNull: true
     },
     nik_subjek: {
       type: DataTypes.STRING,
@@ -48,6 +56,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false
     },
+    provinsi_subjek: {
+      type: DataTypes.STRING,
+      allowNull: false
+    },
     kabupaten_subjek: {
       type: DataTypes.STRING,
       allowNull: false
@@ -61,10 +73,6 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     kode_pos_subjek: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    dokumen_subjek: {
       type: DataTypes.STRING,
       allowNull: false
     },

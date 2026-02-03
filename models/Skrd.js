@@ -6,6 +6,7 @@ module.exports = (sequelize, DataTypes) => {
   class Skrd extends Model {
     static associate(models) {
       Skrd.belongsTo(models.Objek, { foreignKey: 'id_objek' });
+      Skrd.hasOne(models.Ssrd, { foreignKey: 'id_skrd' });
     }
   }
   Skrd.init({

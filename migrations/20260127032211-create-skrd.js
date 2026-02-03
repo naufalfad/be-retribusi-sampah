@@ -39,7 +39,7 @@ module.exports = {
         type: Sequelize.DECIMAL
       },
       status: {
-        type: Sequelize.ENUM('paid', 'unpaid', 'expired'),
+        type: Sequelize.ENUM('paid', 'pending', 'unpaid', 'expired'),
         defaultValue: 'unpaid'
       },
       createdAt: {
