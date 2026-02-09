@@ -1,0 +1,27 @@
+services:
+  rekas-be:
+    build: .
+    container_name: rekas-be
+    restart: always
+    ports:
+      - "4000:3000" # Port 4000 diakses dari luar (Nginx)
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      
+      # --- KONEKSI DATABASE ---
+      - DB_HOST=edaily-db                # Nama container DB lama
+      - DB_USERNAME=postgres             # User asli DB (biasanya postgres)
+      - DB_PASSWORD=password_db_asli_mu  # <--- GANTI INI DENGAN PASSWORD DB ASLI
+      - DB_DATABASE=db_retribusi_sampah  # Database baru yg tadi kamu buat
+      
+    volumes:
+      - ./uploads:/app/uploads           # Biar file upload gak hilang
+      
+    networks:
+      - e-daily-report-net
+
+networks:
+  e-daily-report-net:
+    external: true
+    name: e-daily-report_default         # Nama network docker yg sudah ada
