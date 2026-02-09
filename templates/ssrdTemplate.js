@@ -28,7 +28,7 @@ module.exports = function renderSsrdHtml({ ssrd, skrd, template }) {
             margin: 10mm;
         }
         body {
-            font-family: "Times New Roman", Times, serif;
+            font-family: Arial, Helvetica, sans-serif;
             font-size: 11px;
             color: #000;
             line-height: 1.3;

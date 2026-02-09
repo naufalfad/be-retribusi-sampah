@@ -6,27 +6,37 @@ module.exports = {
       {
         id: '32.01',
         id_provinsi: '32',
-        name: 'KAB. BOGOR'
+        name: 'KAB. BOGOR',
+        createdAt: new Date(),
+        updatedAt: new Date()
       },
       {
         id: '32.71',
         id_provinsi: '32',
-        name: 'KOTA BOGOR'
+        name: 'KOTA BOGOR',
+        createdAt: new Date(),
+        updatedAt: new Date()
       },
       {
         id: '32.76',
         id_provinsi: '32',
-        name: 'KOTA DEPOK'
+        name: 'KOTA DEPOK',
+        createdAt: new Date(),
+        updatedAt: new Date()
       },
       {
         id: '32.75',
         id_provinsi: '32',
-        name: 'KOTA BEKASI'
+        name: 'KOTA BEKASI',
+        createdAt: new Date(),
+        updatedAt: new Date()
       },
       {
         id: '32.16',
         id_provinsi: '32',
-        name: 'KAB. BEKASI'
+        name: 'KAB. BEKASI',
+        createdAt: new Date(),
+        updatedAt: new Date()
       }
     ]);
   },

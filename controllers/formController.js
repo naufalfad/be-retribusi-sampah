@@ -1,6 +1,5 @@
 const fs = require('fs');
 const { sequelize, FormSurat } = require('../models');
-const path = require('path');
 
 exports.inputTemplate = async (req, res) => {
     const {

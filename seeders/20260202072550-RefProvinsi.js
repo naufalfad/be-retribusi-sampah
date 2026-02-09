@@ -26,7 +26,7 @@ module.exports = {
 
   async down(queryInterface, Sequelize) {
     await queryInterface.bulkDelete('ref_provinsi', {
-      kode_provinsi: ['32', '36', '31']
+      id: ['32', '36', '31']
     });
   }
 };

@@ -11,6 +11,7 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       Kelas.hasMany(models.Objek, { foreignKey: 'id_kelas', as: 'objek' });
+      Kelas.hasMany(models.RefPelayanan, { foreignKey: 'id_kelas', as: 'pelayanan' });
     }
   }
   Kelas.init({
@@ -22,12 +23,6 @@ module.exports = (sequelize, DataTypes) => {
     nama_kelas: DataTypes.STRING,
     deskripsi_kelas: DataTypes.TEXT,
     tarif_kelas: DataTypes.DECIMAL,
-    pelayanan_1: DataTypes.TEXT,
-    pelayanan_2: DataTypes.TEXT,
-    pelayanan_3: DataTypes.TEXT,
-    tarif_pelayanan_1: DataTypes.DECIMAL,
-    tarif_pelayanan_2: DataTypes.DECIMAL,
-    tarif_pelayanan_3: DataTypes.DECIMAL
   }, {
     sequelize,
     modelName: 'Kelas',

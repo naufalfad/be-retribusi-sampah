@@ -40,7 +40,6 @@ module.exports = (sequelize, DataTypes) => {
     },
     tarif_pokok_objek: DataTypes.DECIMAL,
     npor_objek: DataTypes.STRING,
-    volume_sampah_objek: DataTypes.DECIMAL,
   }, {
     sequelize,
     modelName: 'Objek',

@@ -64,9 +64,6 @@ module.exports = {
       npor_objek: {
         type: Sequelize.STRING
       },
-      volume_sampah_objek: {
-        type: Sequelize.DECIMAL
-      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

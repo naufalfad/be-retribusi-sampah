@@ -1,4 +1,4 @@
-const { Skrd, Objek, Subjek, Kelas, FormSurat } = require('../models');
+const { Skrd, Objek, Subjek, Kelas, RefPelayananSkrd, FormSurat } = require('../models');
 const renderSkrdHtml = require('../templates/skrdTemplate');
 
 async function getSkrdHtml(id_skrd) {
@@ -8,7 +8,17 @@ async function getSkrdHtml(id_skrd) {
                 model: Objek,
                 include: [
                     { model: Subjek },
-                    { model: Kelas, as: 'kelas' }
+                    { model: Kelas, as: 'kelas', }
+                ]
+            },
+            {
+                model: RefPelayananSkrd,
+                as: 'pelayanan',
+                attributes: [
+                    'nama_pelayanan',
+                    'tarif_pelayanan',
+                    'volume',
+                    'sub_total'
                 ]
             }
         ]

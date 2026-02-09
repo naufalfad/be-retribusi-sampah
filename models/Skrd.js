@@ -7,6 +7,7 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       Skrd.belongsTo(models.Objek, { foreignKey: 'id_objek' });
       Skrd.hasOne(models.Ssrd, { foreignKey: 'id_skrd' });
+      Skrd.hasMany(models.RefPelayananSkrd, { foreignKey: 'id_skrd', as: 'pelayanan' });
     }
   }
   Skrd.init({
@@ -17,8 +18,8 @@ module.exports = (sequelize, DataTypes) => {
     },
     id_objek: DataTypes.INTEGER,
     no_skrd: DataTypes.STRING,
-    periode_bulan: DataTypes.DATE,
-    periode_tahun: DataTypes.DATE,
+    periode_bulan: DataTypes.INTEGER,
+    periode_tahun: DataTypes.INTEGER,
     masa: DataTypes.INTEGER,
     jatuh_tempo: DataTypes.DATE,
     denda: {

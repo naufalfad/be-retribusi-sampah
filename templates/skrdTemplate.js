@@ -6,22 +6,20 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
     const objek = skrd.Objek;
     const subjek = objek.Subjek;
     const kelas = objek.kelas;
-
-    const pelayananList = [
-        { nama: kelas?.pelayanan_1, tarif: kelas?.tarif_pelayanan_1 },
-        { nama: kelas?.pelayanan_2, tarif: kelas?.tarif_pelayanan_2 },
-        { nama: kelas?.pelayanan_3, tarif: kelas?.tarif_pelayanan_3 }
-    ].filter(p => p.nama && p.tarif != null);
+    const pelayananList = skrd.pelayanan || [];
 
     const pelayananRows = pelayananList.map(p => `
-        <tr>
-            <td></td>
-            <td style="padding-left:15px">${p.nama}</td>
-            <td style="text-align:right">
-                ${Number(p.tarif).toLocaleString('id-ID')},00
-            </td>
-        </tr>
-    `).join('');
+    <tr>
+        <td></td>
+        <td style="padding-left:15px">
+            ${p.nama_pelayanan}
+            ${p.volume ? `(${p.volume} m³)` : ''}
+        </td>
+        <td style="text-align:right">
+            ${Number(p.sub_total).toLocaleString('id-ID')},00
+        </td>
+    </tr>
+`).join('');
 
     const logoUrl = template.logo
         ? `${process.env.API_BASE_URL}/${template.logo.replace(/\\/g, '/')}`
@@ -43,7 +41,7 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
         margin: 20mm;
     }
     body {
-        font-family: "Times New Roman", serif;
+        font-family: Arial, Helvetica, sans-serif;
         font-size: 11px;
         color: #000;
     }
@@ -91,9 +89,9 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
     </td>
     <td width="140">
         <table>
-            <tr><td class="center"><b><i>SKRD</i></b></td></tr>
+            <tr><td class="center"><b>SKRD</b></td></tr>
             <tr><td>MASA : <b>${skrd.masa}</b></td></tr>
-            <tr><td>TAHUN : <b>${tahun}</b></td></tr>
+            <tr><td>TAHUN : <b>${skrd.periode_tahun}</b></td></tr>
         </table>
     </td>
 </tr>
@@ -106,8 +104,10 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
 
 <!-- IDENTITAS -->
 <table class="no-border" style="margin-bottom:15px">
-<tr><td width="160"><b>Nama Wajib Retribusi</b></td><td>:</td><td>${objek.nama_objek}</td></tr>
-<tr><td><b>Alamat</b></td><td>:</td><td>${objek.alamat_objek}</td></tr>
+<tr><td width="160"><b>Nama Wajib Retribusi</b></td><td>:</td><td>${subjek.nama_subjek}</td></tr>
+<tr><td width="160"><b>Klasifikasi Objek</b></td><td>:</td><td>${kelas.nama_kelas}</td></tr>
+<tr><td width="160"><b>Nama Objek</b></td><td>:</td><td>${objek.nama_objek}</td></tr>
+<tr><td><b>Alamat</b></td><td>:</td><td>${objek.alamat_objek}, ${objek.kelurahan_objek}</td></tr>
 <tr><td><b>NPWRD</b></td><td>:</td><td><b>${subjek.npwrd_subjek}</b></td></tr>
 <tr><td><b>NPOR</b></td><td>:</td><td><b>${objek.npor_objek}</b></td></tr>
 <tr><td><b>Jatuh Tempo</b></td><td>:</td><td>${jatuhTempo}</td></tr>
@@ -125,18 +125,18 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
 <tbody>
 <tr>
     <td>4.1.2.01.02</td>
-    <td>Retribusi Pelayanan Persampahan/Kebersihan</td>
+    <td>Retribusi Pelayanan Persampahan/Kebersihan (Tarif Pokok Retribusi)</td>
     <td class="right">
-        ${Number(skrd.total_bayar).toLocaleString('id-ID')},00
+        ${Number(objek.tarif_pokok_objek).toLocaleString('id-ID')},00
     </td>
 </tr>
 
 ${pelayananRows}
 
 <tr>
-    <td colspan="2" class="right"><b>Jumlah Ketetapan Pokok</b></td>
+    <td colspan="2" class="right"><b>Jumlah Keseluruhan Retribusi</b></td>
     <td class="right"><b>
-        ${Number(objek.tarif_pokok_objek).toLocaleString('id-ID')},00
+        ${Number(skrd.total_bayar).toLocaleString('id-ID')},00
     </b></td>
 </tr>
 </tbody>
@@ -153,7 +153,7 @@ ${pelayananRows}
     </td>
 
     <td class="center" style="vertical-align:top">
-        Dicetak pada ${new Date().toLocaleDateString('id-ID')}<br/><br/>
+        Cibinong, ${new Date().toLocaleDateString('id-ID')}<br/><br/>
 
         <!-- LOGO / TTD DIGITAL -->
         <img src="${ttdUrl}"

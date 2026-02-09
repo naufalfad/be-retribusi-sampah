@@ -20,10 +20,10 @@ module.exports = {
         type: Sequelize.STRING
       },
       periode_bulan: {
-        type: Sequelize.DATE
+        type: Sequelize.INTEGER
       },
       periode_tahun: {
-        type: Sequelize.DATE
+        type: Sequelize.INTEGER
       },
       masa: {
         type: Sequelize.INTEGER

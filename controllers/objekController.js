@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { Op } = require('sequelize');
-const { RefProvinsi, RefKabupaten, RefKecamatan, RefKelurahan, RefKodepos,
+const { RefProvinsi, RefKabupaten, RefKecamatan, RefKelurahan, RefKodepos, RefPelayanan,
     Objek, DokumenObjek, Kelas, Subjek, sequelize } = require('../models');
 const { findOrCreateByName } = require('../utils/refHelper');
 
@@ -87,7 +87,7 @@ exports.createObjek = async (req, res) => {
             kelurahan_objek,
             kode_pos_objek,
             koordinat_objek: koordinat,
-            tarif_pokok: tarif
+            tarif_pokok_objek: tarif
         }, { transaction });
         console.timeEnd("DB_Insert_Objek");
 
@@ -188,11 +188,11 @@ exports.getAllKelas = async (req, res) => {
     try {
         const dataKelas = await Kelas.findAll({
             attributes: [
-                'id_kelas', 'tarif_kelas', 'nama_kelas', 'deskripsi_kelas',
-                'pelayanan_1', 'tarif_pelayanan_1',
-                'pelayanan_2', 'tarif_pelayanan_2',
-                'pelayanan_3', 'tarif_pelayanan_3'
+                'id_kelas', 'tarif_kelas', 'nama_kelas', 'deskripsi_kelas'
             ],
+            include: [{
+                model: RefPelayanan, as: 'pelayanan'
+            }],
             order: [['id_kelas', 'ASC']]
         });
 

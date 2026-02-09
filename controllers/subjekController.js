@@ -3,6 +3,9 @@ const { Subjek, Objek, sequelize, DokumenSubjek } = require('../models');
 const bcrypt = require('bcrypt');
 const path = require('path');
 const { Op } = require('sequelize');
+const { getNpwrdHtml } = require('../services/npwrdService');
+const { getBrowser } = require('../utils/puppeteerBrowser');
+const { generateRandomPassword } = require('../utils/passwordGenerator');
 
 exports.createSubjek = async (req, res) => {
     const transaction = await sequelize.transaction();
@@ -147,5 +150,51 @@ exports.getListSubjek = async (req, res) => {
             message: 'Gagal mengambil data subjek',
             error: error.message
         });
+    }
+};
+
+exports.previewNpwrdHtml = async (req, res) => {
+    try {
+        const html = await getNpwrdHtml(req.params.id_subjek);
+        res.type('html').send(html);
+    } catch (err) {
+        res.status(404).json({ message: err.message });
+    }
+};
+
+exports.cetakNpwrdPdf = async (req, res) => {
+    try {
+        const { id_subjek } = req.params;
+
+        const newPlainPassword = generateRandomPassword();
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPlainPassword, salt);
+
+        await Subjek.update(
+            { password_subjek: hashedPassword },
+            { where: { id_subjek } }
+        );
+
+        const html = await getNpwrdHtml(id_subjek, newPlainPassword);
+
+        const browser = await getBrowser();
+        const page = await browser.newPage();
+
+        try {
+            await page.setContent(html, { waitUntil: 'networkidle0' });
+            const pdf = await page.pdf({
+                width: '85.6mm',
+                height: '53.98mm',
+                printBackground: true,
+                margin: { top: 0, right: 0, bottom: 0, left: 0 }
+            });
+
+            res.type('pdf').send(pdf);
+        } finally {
+            await page.close();
+        }
+
+    } catch (err) {
+        res.status(500).json({ message: err.message });
     }
 };
