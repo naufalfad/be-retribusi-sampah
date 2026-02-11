@@ -3,25 +3,25 @@ services:
     build: .
     container_name: rekas-be
     restart: always
+
+    # Mapping Port:
+    # Port 4005 di VPS (Biar gak bentrok sama KeuanganKu) -> Port 3000 di Container (Sesuai app.js)
     ports:
-      - "4000:3000" # Port 4000 diakses dari luar (Nginx)
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-      
-      # --- KONEKSI DATABASE ---
-      - DB_HOST=edaily-db                # Nama container DB lama
-      - DB_USERNAME=postgres             # User asli DB (biasanya postgres)
-      - DB_PASSWORD=password_db_asli_mu  # <--- GANTI INI DENGAN PASSWORD DB ASLI
-      - DB_DATABASE=db_retribusi_sampah  # Database baru yg tadi kamu buat
-      
+      - "4005:3000"
+
+    # Baca file .env yang tadi kita buat
+    env_file:
+      - .env
+
+    # Mapping folder upload biar file gak ilang kalau restart
     volumes:
-      - ./uploads:/app/uploads           # Biar file upload gak hilang
-      
+      - ./uploads:/app/uploads
+
+    # Gabung ke jaringan edaily biar bisa connect ke database
     networks:
       - e-daily-report-net
 
 networks:
   e-daily-report-net:
     external: true
-    name: e-daily-report_default         # Nama network docker yg sudah ada
+    name: e-daily-report_default
