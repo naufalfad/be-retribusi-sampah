@@ -36,6 +36,13 @@ module.exports = {
         createdAt: new Date(),
         updatedAt: new Date()
       },
+      {
+        username: 'penagih',
+        password: hashedPassword,
+        role: 'Penagih',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
     ], {});
   },
 

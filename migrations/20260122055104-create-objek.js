@@ -64,6 +64,9 @@ module.exports = {
       npor_objek: {
         type: Sequelize.STRING
       },
+      status_objek: {
+        type: Sequelize.ENUM('Aktif', 'Non-Aktif', 'Pending')
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

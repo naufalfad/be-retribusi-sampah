@@ -40,6 +40,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     tarif_pokok_objek: DataTypes.DECIMAL,
     npor_objek: DataTypes.STRING,
+    status_objek: DataTypes.ENUM('Aktif', 'Non-Aktif', 'Pending')
   }, {
     sequelize,
     modelName: 'Objek',

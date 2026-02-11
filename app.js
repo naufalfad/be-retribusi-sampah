@@ -10,6 +10,7 @@ const skrdRoutes = require('./routes/skrdRoutes');
 const formRoutes = require('./routes/formRoutes');
 const ssrdRoutes = require('./routes/ssrdRoutes');
 const wilayahRoutes = require('./routes/wilayahRoutes');
+const dasarHukumRoutes = require('./routes/dasarHukumRoutes');
 const { closeBrowser } = require('./utils/puppeteerBrowser');
 
 setInterval(async () => {
@@ -33,6 +34,7 @@ app.use('/api/skrd', skrdRoutes);
 app.use('/api/form', formRoutes);
 app.use('/api/ssrd', ssrdRoutes);
 app.use('/api/wilayah', wilayahRoutes);
+app.use('/api/peraturan', dasarHukumRoutes);
 
 const PORT = 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
