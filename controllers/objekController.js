@@ -87,7 +87,8 @@ exports.createObjek = async (req, res) => {
             kelurahan_objek,
             kode_pos_objek,
             koordinat_objek: koordinat,
-            tarif_pokok_objek: tarif
+            tarif_pokok_objek: tarif,
+            status_objek: 'Aktif'
         }, { transaction });
         console.timeEnd("DB_Insert_Objek");
 
@@ -141,49 +142,6 @@ const generateNPOR = async () => {
     return `NPOR-${year}-${nextNumber}`;
 };
 
-exports.getAllObjek = async (req, res) => {
-    try {
-        // Ambil parameter query untuk paginasi (opsional)
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const offset = (page - 1) * limit;
-
-        const { count, rows } = await Objek.findAndCountAll({
-            // Mengambil data dokumen terkait (Eager Loading)
-            include: [
-                {
-                    model: DokumenObjek,
-                    attributes: ['id_dokumen_objek', 'file_path']
-                }
-            ],
-            limit: limit,
-            offset: offset,
-            order: [['createdAt', 'DESC']],
-            distinct: true
-        });
-
-        const totalPages = Math.ceil(count / limit);
-
-        res.status(200).json({
-            message: 'Data objek berhasil diambil',
-            pagination: {
-                total_items: count,
-                total_pages: totalPages,
-                current_page: page,
-                items_per_page: limit
-            },
-            data: rows
-        });
-
-    } catch (error) {
-        console.error("Error getAllObjek:", error);
-        res.status(500).json({
-            message: 'Terjadi kesalahan saat mengambil data',
-            error: error.message
-        });
-    }
-};
-
 exports.getAllKelas = async (req, res) => {
     try {
         const dataKelas = await Kelas.findAll({
@@ -223,10 +181,18 @@ exports.getListObjek = async (req, res) => {
         // 2. Eksekusi findAndCountAll
         const { count, rows } = await Objek.findAndCountAll({
             where: {
-                // Contoh filter pencarian berdasarkan nama_subjek
-                nama_objek: {
-                    [Op.iLike]: `%${search}%` // Gunakan Op.like jika menggunakan MySQL
-                }
+                [Op.or]: [
+                    {
+                        nama_objek: {
+                            [Op.iLike]: `%${search}%`
+                        }
+                    },
+                    {
+                        npor_objek: {
+                            [Op.iLike]: `%${search}%`
+                        }
+                    }
+                ]
             },
             include: [
                 {
@@ -265,6 +231,88 @@ exports.getListObjek = async (req, res) => {
             status: 'error',
             message: 'Gagal mengambil data subjek',
             error: error.message
+        });
+    }
+};
+
+exports.updateObjek = async (req, res) => {
+    const {
+        id_objek,
+        nama_objek,
+        alamat_objek,
+        kecamatan_objek,
+        kelurahan_objek
+    } = req.body;
+
+    const transaction = await sequelize.transaction();
+    try {
+        const objek = await Objek.findByPk(id_objek, { transaction });
+
+        if (!objek) {
+            return res.status(404).json({
+                success: false,
+                message: 'Objek tidak ditemukan'
+            });
+        }
+
+        // Update hanya field yang dikirim
+        await objek.update({
+            nama_objek: nama_objek ?? objek.nama_objek,
+            alamat_objek: alamat_objek ?? objek.alamat_objek,
+            kecamatan_objek: kecamatan_objek ?? objek.kecamatan_objek,
+            kelurahan_objek: kelurahan_objek ?? objek.kelurahan_objek
+        }, { transaction });
+
+        await transaction.commit();
+
+        return res.status(200).json({
+            success: true,
+            message: 'Objek berhasil diperbarui',
+            data: objek
+        });
+
+    } catch (error) {
+        if (transaction) await transaction.rollback();
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: 'Terjadi kesalahan server'
+        });
+    }
+};
+
+exports.nonaktifkanObjek = async (req, res) => {
+    try {
+        const { id_objek } = req.body;
+
+        const objek = await Objek.findByPk(id_objek);
+
+        if (!objek) {
+            return res.status(404).json({
+                success: false,
+                message: 'Objek tidak ditemukan'
+            });
+        }
+
+        const statusBaru =
+            objek.status_objek === "Aktif"
+                ? "Non-Aktif"
+                : "Aktif";
+
+        await objek.update({
+            status_objek: statusBaru
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: `Objek berhasil diubah menjadi ${statusBaru}`
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: 'Terjadi kesalahan server'
         });
     }
 };

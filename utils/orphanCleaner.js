@@ -4,10 +4,8 @@ const { DokumenSubjek, DokumenObjek, RefDasarHukum } = require("../models");
 
 const uploadsDir = path.join(__dirname, "../uploads");
 
-async function runOrphanCleaner() {
+async function runOrphanCleaner(options = { dryRun: false }) {
     try {
-        console.log("Running orphan file cleaner...");
-
         const allFiles = fs.readdirSync(uploadsDir);
 
         const subjekFiles = await DokumenSubjek.findAll({
@@ -23,23 +21,34 @@ async function runOrphanCleaner() {
         });
 
         const dbFiles = new Set([
-            ...subjekFiles.map(f => path.basename(f.file_path)),
-            ...objekFiles.map(f => path.basename(f.file_path)),
-            ...dasarHukumFiles.map(f => path.basename(f.dokumen_peraturan)),
+            ...subjekFiles.map(f => f.file_path && path.basename(f.file_path)),
+            ...objekFiles.map(f => f.file_path && path.basename(f.file_path)),
+            ...dasarHukumFiles.map(f => f.dokumen_peraturan && path.basename(f.dokumen_peraturan)),
         ]);
 
         const orphanFiles = allFiles.filter(file => !dbFiles.has(file));
 
-        for (const file of orphanFiles) {
-            const filePath = path.join(uploadsDir, file);
-            fs.unlinkSync(filePath);
-            console.log(`Deleted orphan file: ${file}`);
+        let deleted = 0;
+
+        if (!options.dryRun) {
+            for (const file of orphanFiles) {
+                const filePath = path.join(uploadsDir, file);
+                fs.unlinkSync(filePath);
+                deleted++;
+            }
         }
 
-        console.log("Orphan cleaning completed");
+        return {
+            success: true,
+            total_files: allFiles.length,
+            orphan_count: orphanFiles.length,
+            deleted,
+            orphan_files: orphanFiles
+        };
 
     } catch (error) {
         console.error("Error in orphan cleaner:", error);
+        throw error;
     }
 }
 
