@@ -2,39 +2,20 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('dat_ssrd', {
-      id_ssrd: {
+    await queryInterface.createTable('dat_penagih', {
+      id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      id_skrd: {
-        type: Sequelize.INTEGER,
-        references: {
-          model: 'dat_skrd',
-          key: 'id_skrd'
-        }
-      },
-      no_ssrd: {
+      username: {
         type: Sequelize.STRING
       },
-      payment_method: {
+      password: {
         type: Sequelize.STRING
       },
-      amount_paid: {
-        type: Sequelize.DECIMAL
-      },
-      paid_at: {
-        type: Sequelize.DATE
-      },
-      payment_status: {
-        type: Sequelize.STRING
-      },
-      rejected_reason: {
-        type: Sequelize.STRING
-      },
-      catatan_bendahara: {
+      kelurahan: {
         type: Sequelize.STRING
       },
       createdAt: {
@@ -48,6 +29,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('dat_ssrd');
+    await queryInterface.dropTable('dat_penagih');
   }
 };

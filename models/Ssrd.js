@@ -24,10 +24,9 @@ module.exports = (sequelize, DataTypes) => {
     payment_method: DataTypes.STRING,
     amount_paid: DataTypes.DECIMAL,
     paid_at: DataTypes.DATE,
-    payment_status: {
-      type: DataTypes.ENUM('paid', 'pending', 'unpaid', 'expired'),
-      defaultValue: 'unpaid'
-    }
+    payment_status: DataTypes.STRING,
+    rejected_reason: DataTypes.STRING,
+    catatan_bendahara: DataTypes.STRING,
   }, {
     sequelize,
     modelName: 'Ssrd',

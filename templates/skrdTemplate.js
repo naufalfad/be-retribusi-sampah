@@ -1,8 +1,19 @@
 const { formatTanggalID, formatTahun } = require('../utils/dateFormatter');
+const { formatMasa } = require('../utils/monthFormatter');
 
 module.exports = function renderSkrdHtml({ skrd, template }) {
     const tahun = formatTahun(skrd.periode_tahun);
     const jatuhTempo = formatTanggalID(skrd.jatuh_tempo);
+    const labelMasa = formatMasa(skrd.periode_bulan, skrd.masa);
+
+    const isKurangBayar = skrd.tipe_skrd === 'Kurang Bayar';
+
+    const judulDokumen = isKurangBayar
+        ? "SURAT KETETAPAN RETRIBUSI DAERAH KURANG BAYAR"
+        : "SURAT KETETAPAN RETRIBUSI DAERAH";
+
+    const singkatanDokumen = isKurangBayar ? "SKRDKB" : "SKRD";
+
     const objek = skrd.Objek;
     const subjek = objek.Subjek;
     const kelas = objek.kelas;
@@ -27,14 +38,14 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
 
     const ttdUrl = template.ttd_pejabat
         ? `${process.env.API_BASE_URL}/${template.ttd_pejabat.replace(/\\/g, '/')}`
-        : `${process.env.API_BASE_URL}/logo-bogor.png`;
+        : `${process.env.API_BASE_URL}/${template.logo.replace(/\\/g, '/')}`;
 
     return `
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>SKRD</title>
+<title>${singkatanDokumen}</title>
 <style>
     @page {
         size: A4;
@@ -89,13 +100,17 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
     </td>
     <td width="140">
         <table>
-            <tr><td class="center"><b>SKRD</b></td></tr>
-            <tr><td>MASA : <b>${skrd.masa}</b></td></tr>
+            <tr><td class="center" style="font-weight:medium;font-size:13px" ><b>${singkatanDokumen}</b></td></tr>
+            <tr><td>MASA : <b>${labelMasa}</b></td></tr>    
             <tr><td>TAHUN : <b>${skrd.periode_tahun}</b></td></tr>
         </table>
     </td>
 </tr>
 </table>
+
+<div class="center uppercase" style="font-weight:bold; font-size:14px; margin-bottom:15px; text-decoration: none;">
+    ${judulDokumen} (${singkatanDokumen})
+</div>
 
 <!-- NOMOR -->
 <div style="text-align:right;margin-bottom:15px">
@@ -128,6 +143,13 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
     <td>Retribusi Pelayanan Persampahan/Kebersihan (Tarif Pokok Retribusi)</td>
     <td class="right">
         ${Number(objek.tarif_pokok_objek).toLocaleString('id-ID')},00
+    </td>
+</tr>
+<tr>
+    <td></td>
+    <td>Denda</td>
+    <td class="right">
+        ${Number(skrd.denda).toLocaleString('id-ID')},00
     </td>
 </tr>
 

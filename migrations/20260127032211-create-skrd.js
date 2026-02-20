@@ -39,8 +39,13 @@ module.exports = {
         type: Sequelize.DECIMAL
       },
       status: {
-        type: Sequelize.ENUM('paid', 'pending', 'unpaid', 'expired'),
-        defaultValue: 'unpaid'
+        type: Sequelize.STRING
+      },
+      parent_id: {
+        type: Sequelize.INTEGER
+      },
+      tipe_skrd: {
+        type: Sequelize.TEXT
       },
       createdAt: {
         allowNull: false,

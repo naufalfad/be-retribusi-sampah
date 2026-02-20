@@ -9,7 +9,8 @@ exports.getSummaryReport = async (req, res) => {
 
         const totalRealisasi = await Ssrd.sum('amount_paid', {
             where: {
-                paid_at: { [Op.between]: [`${tahunIni}-01-01`, `${tahunIni}-12-31`] }
+                paid_at: { [Op.between]: [`${tahunIni}-01-01`, `${tahunIni}-12-31`] },
+                payment_status: { [Op.in]: ['partial', 'paid'] }
             }
         });
 
@@ -64,13 +65,17 @@ exports.getDetailedReport = async (req, res) => {
         let whereObjek = {};
 
         // Filter Tahun & Bulan
-        if (year) whereSkrd.periode_tahun = { [Op.eq]: `${year}-01-01` };
-        if (month && type === 'bulanan') {
-            // Logika filter bulan sesuai struktur data periode_bulan Anda
+        if (year) {
+            whereSkrd.periode_tahun = parseInt(year);
+        }
+        if (month && (type === 'bulanan' || type === 'wilayah')) {
+            whereSkrd.periode_bulan = parseInt(month);
         }
 
         // Filter Wilayah
-        if (kecamatan) whereObjek.kecamatan_objek = kecamatan;
+        if (kecamatan && kecamatan !== '') {
+            whereObjek.kecamatan_objek = kecamatan;
+        }
 
         let data;
 
@@ -83,19 +88,24 @@ exports.getDetailedReport = async (req, res) => {
         } else {
             // LAPORAN 2, 3, 4: Penerimaan (Tahunan/Bulanan/Wilayah)
             data = await Skrd.findAll({
-                attributes: [
-                    'id_skrd', 'no_skrd', 'total_bayar', 'status', 'createdAt',
-                    [col('Objek.Subjek.kategori_subjek'), 'kategori_wp']
+                attributes: ['id_skrd', 'no_skrd', 'createdAt', 'periode_bulan', 'periode_tahun'],
+                where: whereSkrd,
+                include: [
+                    {
+                        model: Objek,
+                        where: whereObjek,
+                        include: [{ model: Subjek, attributes: ['nama_subjek', 'kategori_subjek'] }]
+                    },
+                    {
+                        model: Ssrd,
+                        where: {
+                            payment_status: {
+                                [Op.in]: ['partial', 'paid']
+                            }
+                        },
+                        attributes: ['amount_paid']
+                    }
                 ],
-                where: {
-                    ...whereSkrd,
-                    status: 'paid' // Hanya yang sudah lunas untuk laporan penerimaan
-                },
-                include: [{
-                    model: Objek,
-                    where: whereObjek,
-                    include: [{ model: Subjek, attributes: ['nama_subjek', 'kategori_subjek'] }]
-                }],
                 order: [['createdAt', 'DESC']]
             });
         }

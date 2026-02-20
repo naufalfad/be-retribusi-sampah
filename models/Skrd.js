@@ -28,9 +28,10 @@ module.exports = (sequelize, DataTypes) => {
     },
     total_bayar: DataTypes.DECIMAL,
     status: {
-      type: DataTypes.ENUM('paid', 'unpaid', 'expired'),
-      defaultValue: 'unpaid'
-    }
+      type: DataTypes.STRING
+    },
+    parent_id: DataTypes.INTEGER,
+    tipe_skrd: DataTypes.TEXT
   }, {
     sequelize,
     modelName: 'Skrd',

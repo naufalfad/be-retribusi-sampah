@@ -13,6 +13,7 @@ const wilayahRoutes = require('./routes/wilayahRoutes');
 const dasarHukumRoutes = require('./routes/dasarHukumRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const maintenanceRoutes = require('./routes/maintenanceRoutes');
+const logsRoutes = require('./routes/logsRoutes');
 const { closeBrowser } = require('./utils/puppeteerBrowser');
 
 setInterval(async () => {
@@ -39,6 +40,7 @@ app.use('/api/wilayah', wilayahRoutes);
 app.use('/api/peraturan', dasarHukumRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/logs', logsRoutes);
 
 const PORT = 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

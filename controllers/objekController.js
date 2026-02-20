@@ -1,8 +1,9 @@
 require('dotenv').config();
 const { Op } = require('sequelize');
 const { RefProvinsi, RefKabupaten, RefKecamatan, RefKelurahan, RefKodepos, RefPelayanan,
-    Objek, DokumenObjek, Kelas, Subjek, sequelize } = require('../models');
+    Objek, DokumenObjek, Kelas, Subjek, Skrd, sequelize } = require('../models');
 const { findOrCreateByName } = require('../utils/refHelper');
+const recordLog = require('../utils/logger');
 
 exports.createObjek = async (req, res) => {
     // 1. Validasi awal di luar transaksi agar tidak membebani DB
@@ -104,6 +105,18 @@ exports.createObjek = async (req, res) => {
             console.timeEnd("DB_Bulk_Create_Dokumen");
         }
 
+        await recordLog(req, {
+            action: 'CREATE_DATA_OBJEK',
+            module: 'MANAJEMEN_OBJEK',
+            description: `Petugas menambahkan objek baru ${newObjek.npor_objek}`,
+            oldData: null,
+            newData: {
+                nama_objek: newObjek.nama_objek,
+                npor_objek: newObjek.npor_objek,
+                kategori_objek: newObjek.kategori_objek
+            }
+        }, { transaction });
+
         await transaction.commit();
 
         res.status(201).json({
@@ -202,7 +215,20 @@ exports.getListObjek = async (req, res) => {
                 {
                     model: DokumenObjek,
                     attributes: ['id_dokumen_objek', 'file_path']
-                }],
+                },
+                {
+                    model: Skrd,
+                    attributes: [
+                        'id_skrd',
+                        'no_skrd',
+                        'total_bayar',
+                        'periode_bulan',
+                        'periode_tahun',
+                        'createdAt',
+                        'status'
+                    ],
+                },
+            ],
             limit: limit,
             offset: offset,
             order: [['createdAt', 'DESC']], // Urutkan dari yang terbaru
@@ -263,6 +289,18 @@ exports.updateObjek = async (req, res) => {
             kelurahan_objek: kelurahan_objek ?? objek.kelurahan_objek
         }, { transaction });
 
+        await recordLog(req, {
+            action: 'UPDATE_DATA_OBJEK',
+            module: 'MANAJEMEN_OBJEK',
+            description: `Petugas mengubah alamat objek dari ${objek.alamat_objek} menjadi ${alamat_objek}`,
+            oldData: objek,
+            newData: {
+                nama_objek: objek.nama_objek,
+                npor_objek: objek.npor_objek,
+                kategori_objek: objek.kategori_objek
+            }
+        }, { transaction });
+
         await transaction.commit();
 
         return res.status(200).json({
@@ -301,6 +339,14 @@ exports.nonaktifkanObjek = async (req, res) => {
 
         await objek.update({
             status_objek: statusBaru
+        });
+
+        await recordLog(req, {
+            action: 'UPDATE_DATA_OBJEK',
+            module: 'MANAJEMEN_OBJEK',
+            description: `Petugas mengubah aktivasi objek`,
+            oldData: objek,
+            newData: statusBaru
         });
 
         return res.status(200).json({

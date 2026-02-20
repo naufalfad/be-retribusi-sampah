@@ -2,6 +2,7 @@ const { Objek, Kelas, Skrd, Subjek, RefPelayanan, RefPelayananSkrd, sequelize } 
 const { Op } = require('sequelize');
 const { getSkrdHtml } = require('../services/skrdService');
 const { getBrowser } = require('../utils/puppeteerBrowser');
+const recordLog = require('../utils/logger');
 
 exports.penetapanSkrd = async (req, res) => {
     const transaction = await sequelize.transaction();
@@ -83,6 +84,8 @@ exports.penetapanSkrd = async (req, res) => {
             jatuh_tempo: jatuh_tempo,
             denda: denda || null,
             total_bayar: totalBayar,
+            status: 'unpaid',
+            tipe_skrd: 'Skrd'
         }, { transaction });
 
         const pelayananSkrdData = pelayananDipilih.map(p => ({
@@ -101,7 +104,16 @@ exports.penetapanSkrd = async (req, res) => {
             throw new Error("Minimal pilih 1 pelayanan untuk non rumah tinggal");
         }
 
-        // Commit semua perubahan
+        await recordLog(req, {
+            action: 'CREATE_DATA_SKRD',
+            module: 'MANAJEMEN_SKRD',
+            description: `Petugas menetapkan SKRD baru ${newSkrd.no_skrd}`,
+            oldData: null,
+            newData: {
+                no_skrd: newSkrd.no_skrd
+            }
+        }, { transaction });
+
         await transaction.commit();
 
         res.status(201).json({
@@ -204,39 +216,6 @@ exports.getListSkrd = async (req, res) => {
     }
 };
 
-// exports.getSkrdByObjek = async (req, res) => {
-//     try {
-//         const { id_objek } = req.params;
-
-//         if (!id_objek) {
-//             return res.status(400).json({
-//                 message: 'id_objek wajib dikirim'
-//             });
-//         }
-
-//         const dataSKRD = await Skrd.findAll({
-//             where: { id_objek },
-//             order: [['createdAt', 'DESC']]
-//         });
-
-//         if (dataSKRD.length === 0) {
-//             return res.status(404).json({
-//                 message: 'Data SKRD untuk objek ini tidak ditemukan'
-//             });
-//         }
-
-//         res.status(200).json({
-//             message: 'Data SKRD berhasil diambil',
-//             jumlah: dataSKRD.length,
-//             data: dataSKRD
-//         });
-
-//     } catch (error) {
-//         console.error(error);
-//         res.status(500).json({ message: error.message });
-//     }
-// };
-
 exports.previewSkrdHtml = async (req, res) => {
     try {
         const html = await getSkrdHtml(req.params.id_skrd);
@@ -267,5 +246,91 @@ exports.cetakSkrdPdf = async (req, res) => {
 
     } catch (err) {
         res.status(500).json({ message: err.message });
+    }
+};
+
+exports.unpaidSkrdList = async (req, res) => {
+    try {
+        // 1. Ambil query parameter untuk pagination & search
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const offset = (page - 1) * limit;
+
+        // 2. Eksekusi findAndCountAll
+        const { count, rows } = await Skrd.findAndCountAll({
+            where: {
+                no_skrd: {
+                    [Op.iLike]: `%${search}%`
+                },
+                status: 'unpaid'
+            },
+            include: [
+                {
+                    model: Objek,
+                    attributes: ['id_objek', 'npor_objek', 'nama_objek', 'alamat_objek', 'tarif_pokok_objek'],
+                    include: [
+                        {
+                            model: Subjek,
+                            attributes: ['id_subjek', 'npwrd_subjek', 'nama_subjek']
+                        }
+                    ]
+                }
+            ],
+            limit: limit,
+            offset: offset,
+            order: [['createdAt', 'DESC']], // Urutkan dari yang terbaru
+            distinct: true
+        });
+
+        // 3. Hitung metadata paginasi
+        const totalPages = Math.ceil(count / limit);
+
+        // 4. Kirim response
+        res.status(200).json({
+            status: 'success',
+            message: 'Daftar SKRD berhasil diambil',
+            pagination: {
+                total_items: count,
+                total_pages: totalPages,
+                current_page: page,
+                items_per_page: limit
+            },
+            data: rows
+        });
+
+    } catch (error) {
+        console.error("Error getListSkrd:", error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Gagal mengambil data subjek',
+            error: error.message
+        });
+    }
+};
+
+exports.generateSkrdKurangBayar = async (req, res) => {
+    const { id_skrd_lama, nominal_kurang } = req.body;
+
+    try {
+        const skrdLama = await Skrd.findByPk(id_skrd_lama);
+
+        const skrdBaru = await Skrd.create({
+            id_objek: skrdLama.id_objek,
+            no_skrd: `${skrdLama.no_skrd}/KB`,
+            total_bayar: nominal_kurang,
+            status: 'unpaid',
+            tipe_skrd: 'Kurang Bayar',
+            parent_id: id_skrd_lama,
+            periode_bulan: skrdLama.periode_bulan,
+            periode_tahun: skrdLama.periode_tahun,
+            masa: skrdLama.masa,
+            jatuh_tempo: skrdLama.jatuh_tempo,
+            denda: skrdLama.denda
+        });
+
+        res.status(201).json({ success: true, data: skrdBaru });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 };

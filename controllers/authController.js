@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Staff } = require('../models');
+const { Staff, Penagih } = require('../models');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const SECRET_KEY = process.env.SECRET_KEY;
@@ -64,3 +64,30 @@ exports.loginStaff = async (req, res) => {
         return res.status(500).json({ message: 'Terjadi kesalahan server', error: error.message });
     }
 };
+
+exports.registerPenagih = async (req, res) => {
+    try {
+        const { username, password, kelurahan } = req.body;
+        if (!username || !password || !kelurahan) {
+            return res.status(400).json({ message: 'Username, password, dan kelurahan harus diisi.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newPenagih = await Penagih.create({
+            username,
+            password: hashedPassword,
+            kelurahan
+        });
+        res.status(201).json({
+            message: 'Register berhasil',
+            penagih: {
+                username: newPenagih.username,
+                kelurahan: newPenagih.kelurahan
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: error.message });
+    }
+}

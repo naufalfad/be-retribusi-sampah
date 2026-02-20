@@ -6,6 +6,7 @@ const { Op } = require('sequelize');
 const { getNpwrdHtml } = require('../services/npwrdService');
 const { getBrowser } = require('../utils/puppeteerBrowser');
 const { generateRandomPassword } = require('../utils/passwordGenerator');
+const recordLog = require('../utils/logger');
 
 exports.createSubjek = async (req, res) => {
     const transaction = await sequelize.transaction();
@@ -16,6 +17,7 @@ exports.createSubjek = async (req, res) => {
             kabupaten_subjek, kecamatan_subjek, kelurahan_subjek, kode_pos_subjek,
             password_subjek
         } = req.body;
+
         const idStaffLogin = req.auth.id_staff;
         const hashedPassword = await bcrypt.hash(password_subjek, 10);
         const npwrdGenerated = await generateNPWRD();
@@ -48,6 +50,18 @@ exports.createSubjek = async (req, res) => {
         if (dokumenData.length > 0) {
             await DokumenSubjek.bulkCreate(dokumenData, { transaction });
         }
+
+        await recordLog(req, {
+            action: 'CREATE_DATA_SUBJEK',
+            module: 'MANAJEMEN_SUBJEK',
+            description: `Petugas menambahkan subjek baru ${newSubjek.npwrd_subjek}`,
+            oldData: null,
+            newData: {
+                nama_subjek: newSubjek.nama_subjek,
+                npwp_subjek: newSubjek.npwp_subjek,
+                kategori_subjek: newSubjek.kategori_subjek
+            }
+        }, { transaction });
 
         await transaction.commit();
 
