@@ -5,39 +5,39 @@ const bcrypt = require('bcrypt');
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    const hashedPassword = await bcrypt.hash('12345678', 10);
+    const hashedPassword = await bcrypt.hash('password123', 10);
 
     await queryInterface.bulkInsert('dat_staff', [
       {
-        username: 'unit',
+        username: 'test.unit@geocitra.com',
         password: hashedPassword,
         role: 'UPT',
         createdAt: new Date(),
         updatedAt: new Date()
       },
       {
-        username: 'dinas',
+        username: 'test.dinas@geocitra.com',
         password: hashedPassword,
         role: 'DLH',
         createdAt: new Date(),
         updatedAt: new Date()
       },
       {
-        username: 'bendahara',
+        username: 'test.bendahara@geocitra.com',
         password: hashedPassword,
         role: 'Bendahara',
         createdAt: new Date(),
         updatedAt: new Date()
       },
       {
-        username: 'admin',
+        username: 'test.admin@geocitra.com',
         password: hashedPassword,
         role: 'Admin',
         createdAt: new Date(),
         updatedAt: new Date()
       },
       {
-        username: 'penagih',
+        username: 'test.penagih@geocitra.com',
         password: hashedPassword,
         role: 'Penagih',
         createdAt: new Date(),
