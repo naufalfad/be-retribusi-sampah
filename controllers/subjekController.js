@@ -9,6 +9,13 @@ const { generateRandomPassword } = require('../utils/passwordGenerator');
 const recordLog = require('../utils/logger');
 
 exports.createSubjek = async (req, res) => {
+    if (!req.user || !req.user.id_staff) {
+        return res.status(401).json({
+            success: false,
+            message: 'Akses ditolak. Hanya petugas yang dapat mendaftarkan NPWRD.'
+        });
+    }
+
     const transaction = await sequelize.transaction();
     try {
         const {
@@ -18,7 +25,7 @@ exports.createSubjek = async (req, res) => {
             password_subjek
         } = req.body;
 
-        const idStaffLogin = req.auth.id_staff;
+        const idStaffLogin = req.user.id_staff;
         const hashedPassword = await bcrypt.hash(password_subjek, 10);
         const npwrdGenerated = await generateNPWRD();
         const newSubjek = await Subjek.create({

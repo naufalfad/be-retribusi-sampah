@@ -68,7 +68,8 @@ exports.loginStaff = async (req, res) => {
             message: 'Login berhasil',
             user: {
                 username: userStaff.username,
-                role: userStaff.role
+                role: userStaff.role,
+                id_staff: userStaff.id_staff
             },
             token
         });
