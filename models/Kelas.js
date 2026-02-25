@@ -23,6 +23,7 @@ module.exports = (sequelize, DataTypes) => {
     nama_kelas: DataTypes.STRING,
     deskripsi_kelas: DataTypes.TEXT,
     tarif_kelas: DataTypes.DECIMAL,
+    asumsi_volume_audit: DataTypes.INTEGER,
   }, {
     sequelize,
     modelName: 'Kelas',

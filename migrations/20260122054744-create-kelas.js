@@ -18,6 +18,9 @@ module.exports = {
       tarif_kelas: {
         type: Sequelize.DECIMAL
       },
+      asumsi_volume_audit: {
+        type: Sequelize.INTEGER
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

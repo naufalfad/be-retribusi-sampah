@@ -47,6 +47,9 @@ module.exports = {
       tipe_skrd: {
         type: Sequelize.TEXT
       },
+      keterangan: {
+        type: Sequelize.TEXT
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

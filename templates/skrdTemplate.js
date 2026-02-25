@@ -1,10 +1,12 @@
 const { formatTanggalID, formatTahun } = require('../utils/dateFormatter');
 const { formatMasa } = require('../utils/monthFormatter');
+const { angkaKeTerbilang, formatRupiah } = require('../utils/numberFormatter');
 
 module.exports = function renderSkrdHtml({ skrd, template }) {
-    const tahun = formatTahun(skrd.periode_tahun);
+    // const tahun = formatTahun(skrd.periode_tahun);
     const jatuhTempo = formatTanggalID(skrd.jatuh_tempo);
     const labelMasa = formatMasa(skrd.periode_bulan, skrd.masa);
+    const teksTerbilang = angkaKeTerbilang(skrd.total_bayar);
 
     const isKurangBayar = skrd.tipe_skrd === 'Kurang Bayar';
 
@@ -32,13 +34,51 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
     </tr>
 `).join('');
 
+    const selisihPokok = isKurangBayar ? (Number(skrd.total_bayar) - Number(skrd.denda)) : 0;
     const logoUrl = template.logo
         ? `${process.env.API_BASE_URL}/${template.logo.replace(/\\/g, '/')}`
         : `${process.env.API_BASE_URL}/uploads/logo/logo-bogor.png`;
 
     const ttdUrl = template.ttd_pejabat
         ? `${process.env.API_BASE_URL}/${template.ttd_pejabat.replace(/\\/g, '/')}`
-        : `${process.env.API_BASE_URL}/${template.logo.replace(/\\/g, '/')}`;
+        : `${process.env.API_BASE_URL}/uploads/logo/logo-bogor.png`;
+
+    let rincianHtml = '';
+    if (isKurangBayar) {
+        // TAMPILAN KHUSUS KURANG BAYAR (HASIL AUDIT)
+        rincianHtml = `
+        <tr>
+            <td class="center">4.1.2.01.02</td>
+            <td>
+                <b>Kekurangan Retribusi Pelayanan Persampahan/Kebersihan</b><br/>
+                <small>Penyesuaian Klasifikasi Masa ${skrd.masa} Bulan</small>
+            </td>
+            <td class="right">${formatRupiah(selisihPokok)}</td>
+        </tr>
+        <tr>
+            <td class="center"></td>
+            <td>
+                <b>Sanksi Administratif (Denda Audit)</b><br/>
+                <small>Sanksi atas ketidaksesuaian data pendaftaran (50%)</small>
+            </td>
+            <td class="right">${formatRupiah(skrd.denda)}</td>
+        </tr>
+        `;
+    } else {
+        // TAMPILAN SKRD REGULER
+        rincianHtml = `
+        <tr>
+            <td class="center">4.1.2.01.02</td>
+            <td>Retribusi Pelayanan Persampahan/Kebersihan (Tarif Pokok)</td>
+            <td class="right">${formatRupiah(objek.tarif_pokok_objek)}</td>
+        </tr>
+        <tr>
+            <td class="center"></td>
+            <td>Denda</td>
+            <td class="right">${formatRupiah(skrd.denda)}</td>
+        </tr>
+        `;
+    }
 
     return `
 <!DOCTYPE html>
@@ -138,31 +178,27 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
 </tr>
 </thead>
 <tbody>
-<tr>
-    <td>4.1.2.01.02</td>
-    <td>Retribusi Pelayanan Persampahan/Kebersihan (Tarif Pokok Retribusi)</td>
-    <td class="right">
-        ${Number(objek.tarif_pokok_objek).toLocaleString('id-ID')},00
-    </td>
-</tr>
-<tr>
-    <td></td>
-    <td>Denda</td>
-    <td class="right">
-        ${Number(skrd.denda).toLocaleString('id-ID')},00
-    </td>
-</tr>
+${rincianHtml}
 
 ${pelayananRows}
 
 <tr>
     <td colspan="2" class="right"><b>Jumlah Keseluruhan Retribusi</b></td>
-    <td class="right"><b>
-        ${Number(skrd.total_bayar).toLocaleString('id-ID')},00
-    </b></td>
+    <td class="right">Rp ${formatRupiah(skrd.total_bayar)}</td>
 </tr>
 </tbody>
 </table>
+
+<div style="margin: 10px 0; padding: 8px; border: 1px solid #000;">
+    <b>TERBILANG:</b> # ${teksTerbilang.toUpperCase()} RUPIAH #
+</div>
+
+${isKurangBayar ? `
+<div style="border: 1px solid #000; padding: 10px; background: #f9f9f9; margin-bottom: 15px;">
+    <b style="font-size: 10px; text-decoration: underline;">CATATAN PEMERIKSAAN / AUDIT:</b><br/>
+    <p style="margin: 5px 0 0 0; font-size: 10px;">${skrd.keterangan || '-'}</p>
+</div>
+` : ''}
 
 <!-- TANDA TANGAN -->
 <table class="no-border" style="margin-top:30px">

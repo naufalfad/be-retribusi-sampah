@@ -29,6 +29,7 @@ module.exports = {
         nama_kelas: 'Non Rumah Tinggal Kelas 1',
         tarif_kelas: null,
         deskripsi_kelas: 'Pertokoan, Industri, Restoran, Hotel/Penginapan, tempat hiburan, tempat wisata',
+        asumsi_volume_audit: 15,
         createdAt: new Date(),
         updatedAt: new Date()
       },
@@ -36,6 +37,7 @@ module.exports = {
         nama_kelas: 'Non Rumah Tinggal Kelas 2',
         tarif_kelas: null,
         deskripsi_kelas: 'Perkantoran, Pasar (Grosir/Toko/ Kios/Los/Lapangan), Rumah Sakit/ Fasilitas Kesehatan',
+        asumsi_volume_audit: 10,
         createdAt: new Date(),
         updatedAt: new Date()
       },

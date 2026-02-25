@@ -31,7 +31,8 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING
     },
     parent_id: DataTypes.INTEGER,
-    tipe_skrd: DataTypes.TEXT
+    tipe_skrd: DataTypes.TEXT,
+    keterangan: DataTypes.TEXT
   }, {
     sequelize,
     modelName: 'Skrd',

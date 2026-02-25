@@ -9,5 +9,6 @@ router.get('/all-kelas', objekController.getAllKelas);
 router.get('/list-objek', objekController.getListObjek);
 router.put('/update-objek', auth, objekController.updateObjek);
 router.put('/nonAktif-objek', auth, objekController.nonaktifkanObjek);
+router.put('/submit-audit', auth, objekController.submitAuditObjek);
 
 module.exports = router;
