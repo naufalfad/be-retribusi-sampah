@@ -73,3 +73,25 @@ exports.getAuditModules = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+exports.getRiwayatPenagih = async (req, res) => {
+    try {
+        const idPenagih = req.user.id_penagih; // Dari token login penagih
+
+        // Kita ambil data log aktivitas yang dilakukan oleh user ini 
+        // dan gabungkan dengan data SSRD jika perlu
+        const logs = await LogAktivitas.findAll({
+            where: {
+                id_user: idPenagih,
+                role: 'Penagih',
+                aksi: 'COLLECT_PAYMENT_FIELD'
+            },
+            order: [['createdAt', 'DESC']],
+            limit: 50
+        });
+
+        res.json({ success: true, data: logs });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};

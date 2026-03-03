@@ -3,7 +3,7 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.createTable('dat_penagih', {
-      id: {
+      id_penagih: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
@@ -16,6 +16,9 @@ module.exports = {
         type: Sequelize.STRING
       },
       kelurahan: {
+        type: Sequelize.STRING
+      },
+      role: {
         type: Sequelize.STRING
       },
       createdAt: {

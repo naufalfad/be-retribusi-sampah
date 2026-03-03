@@ -3,12 +3,13 @@ const { LogAktivitas } = require('../models');
 /**
  * Helper untuk mencatat Audit Trail ke Database
  * @param {Object} req - Objek request dari Express
- * @param {Object} options - Detail log (action, module, description, data)
+ * @param {Object} logData - Detail log (action, module, description, data)
+ * @param {Object} options - Opsi tambahan seperti { transaction }
  */
-const recordLog = async (req, { action, module, description, oldData = null, newData = null }) => {
+const recordLog = async (req, { action, module, description, oldData = null, newData = null }, options = {}) => {
     try {
         // Ambil info user dari middleware autentikasi (biasanya disimpan di req.user)
-        const userId = req.user ? req.user.id_staff : null;
+        const userId = req.user ? req.user.id_staff || req.user.id_penagih : null;
         const userRole = req.user ? req.user.role : 'GUEST';
 
         // Ambil IP Address (antisipasi jika lewat proxy/load balancer)
@@ -26,7 +27,7 @@ const recordLog = async (req, { action, module, description, oldData = null, new
             data_baru: newData,
             ip_address: ip,
             user_agent: req.headers['user-agent']
-        });
+        }, options);
 
         console.log(`[LOG]: ${action} oleh ${userRole} (ID: ${userId}) berhasil dicatat.`);
     } catch (error) {

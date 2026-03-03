@@ -250,8 +250,19 @@ exports.paymentPenagih = async (req, res) => {
             status: 'pending'
         }, { transaction: t });
 
-        await t.commit();
+        await recordLog(req, {
+            action: 'COLLECT_PAYMENT_FIELD',
+            module: 'PENAGIHAN_LAPANGAN',
+            description: `Penagih ${req.user.username} menerima setoran ${payment_method} senilai Rp${amount_paid.toLocaleString()} dari SKRD ${skrd.no_skrd}`,
+            oldData: null,
+            newData: {
+                no_ssrd: newSsrd.no_ssrd,
+                nominal: amount_paid,
+                metode: payment_method
+            }
+        }, { transaction: t });
 
+        await t.commit();
         return res.status(201).json({
             message: 'SSRD berhasil dibuat',
             data_ssrd: newSsrd

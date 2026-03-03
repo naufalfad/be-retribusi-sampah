@@ -373,132 +373,209 @@ exports.nonaktifkanObjek = async (req, res) => {
     }
 };
 
+// exports.submitAuditObjek01 = async (req, res) => {
+//     const transaction = await sequelize.transaction();
+
+//     try {
+//         const {
+//             id_objek,
+//             id_kelas,
+//             id_kelas_temuan,
+//             nama_objek,
+//             alamat_objek,
+//             rt_rw,
+//             kecamatan_objek,
+//             kelurahan_objek,
+//             latitude,
+//             longitude,
+//             tgl_mulai_pelanggaran,
+//             catatan_audit
+//         } = req.body;
+
+//         const idStaffLogin = req.user.id_staff;
+
+//         // 1. Cari data objek yang akan diaudit
+//         const objek = await Objek.findByPk(id_objek);
+//         if (!objek) {
+//             return res.status(404).json({ success: false, message: 'Objek tidak ditemukan.' });
+//         }
+
+//         // 2. Cari data kelas retribusi yang baru (untuk mengambil tarif terbaru)
+//         const kelasLama = await Kelas.findByPk(id_kelas);
+//         const kelasBaru = await Kelas.findByPk(id_kelas_temuan, {
+//             include: [{ model: RefPelayanan, as: 'pelayanan', }]
+//         });
+//         if (!kelasBaru) {
+//             return res.status(400).json({ success: false, message: 'Klasifikasi retribusi tidak valid.' });
+//         }
+
+//         const start = new Date(tgl_mulai_pelanggaran);
+//         const now = new Date();
+//         const durasiBulan = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+
+//         const pelayananUtama = kelasBaru.pelayanan && kelasBaru.pelayanan.length > 0
+//             ? kelasBaru.pelayanan[0]
+//             : null;
+
+//         const tarifPerM3 = pelayananUtama ? parseFloat(pelayananUtama.tarif_pelayanan) : 0;
+//         const asumsiVolume = kelasBaru.asumsi_volume_audit || 10;
+
+//         const isNonRumah = !kelasBaru.deskripsi_kelas.includes("Rumah Tinggal");
+//         const seharusnyaBayar = isNonRumah
+//             ? (asumsiVolume * tarifPerM3) * durasiBulan
+//             : kelasBaru.tarif_kelas * durasiBulan;
+
+//         const sudahDibayar = kelasLama.tarif_kelas * durasiBulan;
+//         const selisihPokok = seharusnyaBayar - sudahDibayar;
+//         const dendaSanksi = selisihPokok * 0.5;
+//         const totalHukuman = selisihPokok + dendaSanksi;
+
+//         // 3. Simpan data lama untuk keperluan Log Audit (Audit Trail)
+//         const oldData = { ...objek.dataValues };
+
+//         // 4. Update data Objek
+//         await objek.update({
+//             nama_objek: nama_objek,
+//             alamat_objek: alamat_objek,
+//             rt_rw_objek: rt_rw,
+//             kecamatan_objek: kecamatan_objek,
+//             kelurahan_objek: kelurahan_objek,
+//             id_kelas: id_kelas_temuan,
+//             // Otomatis update tarif pokok sesuai kelas temuan
+//             tarif_pokok_objek: kelasBaru.tarif_kelas,
+//             kategori_objek: kelasBaru.deskripsi_kelas.includes("Rumah Tinggal") ? "Rumah Tinggal" : "Non Rumah Tinggal",
+//             // Handle tipe data Geometry (PostGIS)
+//             koordinat_objek: sequelize.fn('ST_GeomFromText', `POINT(${longitude} ${latitude})`, 4326)
+//         }, { transaction });
+
+//         if (totalHukuman > 0) {
+//             const today = new Date();
+//             const currentMonth = today.getMonth() + 1;
+//             const currentYear = today.getFullYear();
+
+//             const dueDate = new Date();
+//             dueDate.setDate(today.getDate() + 30);
+
+//             await Skrd.create({
+//                 id_objek: objek.id_objek,
+//                 no_skrd: `SKRDKB-FRAUD-${Date.now()}`,
+//                 periode_bulan: currentMonth,
+//                 periode_tahun: currentYear,
+//                 masa: durasiBulan,
+//                 jatuh_tempo: dueDate,
+//                 tipe_skrd: 'Kurang Bayar',
+//                 total_bayar: totalHukuman,
+//                 denda: dendaSanksi,
+//                 status: 'unpaid',
+//                 keterangan: catatan_audit
+//             }, { transaction });
+//         }
+
+//         // 5. Catat ke Log Aktivitas (Sangat Penting untuk Audit)
+//         await recordLog(req, {
+//             action: 'AUDIT_SURVEY_LAPANGAN',
+//             module: 'PEMERIKSAAN',
+//             description: `Dinas melakukan audit lapangan pada NPOR ${objek.npor_objek}. Alasan: ${catatan_audit}`,
+//             oldData: oldData,
+//             newData: {
+//                 ...objek.dataValues,
+//                 catatan_pemeriksa: catatan_audit
+//             }
+//         }, { transaction });
+
+//         // Commit semua perubahan
+//         await transaction.commit();
+
+//         res.status(200).json({
+//             success: true,
+//             message: `Audit NPOR ${objek.npor_objek} berhasil disimpan. Data objek dan tarif telah diperbarui.`,
+//             data: objek
+//         });
+
+//     } catch (error) {
+//         if (transaction) await transaction.rollback();
+//         console.error("Error submitAuditObjek:", error);
+//         res.status(500).json({
+//             success: false,
+//             message: 'Gagal memproses audit objek.',
+//             error: error.message
+//         });
+//     }
+// };
+
 exports.submitAuditObjek = async (req, res) => {
     const transaction = await sequelize.transaction();
-
     try {
         const {
             id_objek,
-            id_kelas,
             id_kelas_temuan,
-            nama_objek,
-            alamat_objek,
-            rt_rw,
-            kecamatan_objek,
-            kelurahan_objek,
-            latitude,
-            longitude,
             tgl_mulai_pelanggaran,
-            catatan_audit
+            catatan_audit,
+            nama_objek, alamat_objek, rt_rw, kecamatan_objek, kelurahan_objek, latitude, longitude,
+            tarif_audit,
+            durasi_audit,
+            total_terhutang,
+            total_terbayar,
+            total_wajib_bayar
         } = req.body;
 
-        const idStaffLogin = req.user.id_staff;
-
-        // 1. Cari data objek yang akan diaudit
         const objek = await Objek.findByPk(id_objek);
-        if (!objek) {
-            return res.status(404).json({ success: false, message: 'Objek tidak ditemukan.' });
-        }
+        if (!objek) return res.status(404).json({ message: "Objek tidak ditemukan" });
 
-        // 2. Cari data kelas retribusi yang baru (untuk mengambil tarif terbaru)
-        const kelasLama = await Kelas.findByPk(id_kelas);
-        const kelasBaru = await Kelas.findByPk(id_kelas_temuan, {
-            include: [{ model: RefPelayanan, as: 'pelayanan', }]
-        });
-        if (!kelasBaru) {
-            return res.status(400).json({ success: false, message: 'Klasifikasi retribusi tidak valid.' });
-        }
+        // FIX: Ambil data kelas untuk menentukan kategori_objek
+        const kelasBaru = await Kelas.findByPk(id_kelas_temuan);
+        if (!kelasBaru) return res.status(400).json({ message: "Klasifikasi kelas tidak valid" });
 
-        const start = new Date(tgl_mulai_pelanggaran);
-        const now = new Date();
-        const durasiBulan = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+        // Logika penentuan kategori berdasarkan deskripsi kelas
+        const isNonRumah = kelasBaru.deskripsi_kelas.includes("Non Rumah Tinggal") || !kelasBaru.deskripsi_kelas.includes("Rumah Tinggal");
 
-        const pelayananUtama = kelasBaru.pelayanan && kelasBaru.pelayanan.length > 0
-            ? kelasBaru.pelayanan[0]
-            : null;
-
-        const tarifPerM3 = pelayananUtama ? parseFloat(pelayananUtama.tarif_pelayanan) : 0;
-        const asumsiVolume = kelasBaru.asumsi_volume_audit || 10;
-
-        const isNonRumah = !kelasBaru.deskripsi_kelas.includes("Rumah Tinggal");
-        const seharusnyaBayar = isNonRumah
-            ? (asumsiVolume * tarifPerM3) * durasiBulan
-            : kelasBaru.tarif_kelas * durasiBulan;
-
-        const sudahDibayar = kelasLama.tarif_kelas * durasiBulan;
-        const selisihPokok = seharusnyaBayar - sudahDibayar;
-        const dendaSanksi = selisihPokok * 0.5;
-        const totalHukuman = selisihPokok + dendaSanksi;
-
-        // 3. Simpan data lama untuk keperluan Log Audit (Audit Trail)
-        const oldData = { ...objek.dataValues };
-
-        // 4. Update data Objek
         await objek.update({
-            nama_objek: nama_objek,
-            alamat_objek: alamat_objek,
+            nama_objek,
+            alamat_objek,
             rt_rw_objek: rt_rw,
-            kecamatan_objek: kecamatan_objek,
-            kelurahan_objek: kelurahan_objek,
+            kecamatan_objek,
+            kelurahan_objek,
             id_kelas: id_kelas_temuan,
-            // Otomatis update tarif pokok sesuai kelas temuan
-            tarif_pokok_objek: kelasBaru.tarif_kelas,
-            kategori_objek: kelasBaru.deskripsi_kelas.includes("Rumah Tinggal") ? "Rumah Tinggal" : "Non Rumah Tinggal",
-            // Handle tipe data Geometry (PostGIS)
+            tarif_pokok_objek: tarif_audit,
+            kategori_objek: isNonRumah ? 'Non Rumah Tinggal' : 'Rumah Tinggal', // Sekarang isNonRumah sudah ada
             koordinat_objek: sequelize.fn('ST_GeomFromText', `POINT(${longitude} ${latitude})`, 4326)
         }, { transaction });
 
-        if (totalHukuman > 0) {
-            const today = new Date();
-            const currentMonth = today.getMonth() + 1;
-            const currentYear = today.getFullYear();
-
+        if (parseFloat(total_wajib_bayar) > 0) {
+            const now = new Date();
             const dueDate = new Date();
-            dueDate.setDate(today.getDate() + 30);
+            dueDate.setDate(now.getDate() + 30);
 
             await Skrd.create({
                 id_objek: objek.id_objek,
-                no_skrd: `SKRDKB-FRAUD-${Date.now()}`,
-                periode_bulan: currentMonth,
-                periode_tahun: currentYear,
-                masa: durasiBulan,
+                no_skrd: `SKRDKB-AUDIT-${Date.now()}`,
+                periode_bulan: now.getMonth() + 1,
+                periode_tahun: now.getFullYear(),
+                masa: durasi_audit,
                 jatuh_tempo: dueDate,
                 tipe_skrd: 'Kurang Bayar',
-                total_bayar: totalHukuman,
-                denda: dendaSanksi,
+                total_bayar: total_wajib_bayar,
+                denda: parseFloat(total_wajib_bayar) - (parseFloat(total_terhutang) - parseFloat(total_terbayar)),
                 status: 'unpaid',
                 keterangan: catatan_audit
             }, { transaction });
         }
 
-        // 5. Catat ke Log Aktivitas (Sangat Penting untuk Audit)
+        // Simpan Log
         await recordLog(req, {
-            action: 'AUDIT_SURVEY_LAPANGAN',
+            action: 'MANUAL_AUDIT_FINANSIAL',
             module: 'PEMERIKSAAN',
-            description: `Dinas melakukan audit lapangan pada NPOR ${objek.npor_objek}. Alasan: ${catatan_audit}`,
-            oldData: oldData,
-            newData: {
-                ...objek.dataValues,
-                catatan_pemeriksa: catatan_audit
-            }
+            description: `Audit Manual NPOR ${objek.npor_objek}. Tagihan baru: ${total_wajib_bayar}`,
+            oldData: null,
+            newData: req.body
         }, { transaction });
 
-        // Commit semua perubahan
         await transaction.commit();
-
-        res.status(200).json({
-            success: true,
-            message: `Audit NPOR ${objek.npor_objek} berhasil disimpan. Data objek dan tarif telah diperbarui.`,
-            data: objek
-        });
+        res.json({ success: true, message: "Hasil audit berhasil disimpan dan ditagihkan." });
 
     } catch (error) {
         if (transaction) await transaction.rollback();
-        console.error("Error submitAuditObjek:", error);
-        res.status(500).json({
-            success: false,
-            message: 'Gagal memproses audit objek.',
-            error: error.message
-        });
+        console.error(error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };

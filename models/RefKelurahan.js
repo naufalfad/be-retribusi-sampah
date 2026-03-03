@@ -11,7 +11,6 @@ module.exports = (sequelize, DataTypes) => {
      */
     static associate(models) {
       RefKelurahan.belongsTo(models.RefKecamatan, { foreignKey: 'id_kecamatan' });
-      RefKelurahan.hasMany(models.RefKodepos, { foreignKey: 'id_kelurahan' });
     }
   }
   RefKelurahan.init({
@@ -22,7 +21,12 @@ module.exports = (sequelize, DataTypes) => {
       unique: true
     },
     id_kecamatan: DataTypes.STRING,
-    name: DataTypes.STRING
+    name: DataTypes.STRING,
+    kode_pos: DataTypes.STRING,
+    lokasi: {
+      type: DataTypes.GEOMETRY('POINT', 4326),
+      allowNull: false
+    },
   }, {
     sequelize,
     modelName: 'RefKelurahan',

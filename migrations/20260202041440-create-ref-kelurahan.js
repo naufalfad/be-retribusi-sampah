@@ -19,6 +19,12 @@ module.exports = {
       name: {
         type: Sequelize.STRING
       },
+      kode_pos: {
+        type: Sequelize.STRING
+      },
+      lokasi: {
+        type: Sequelize.GEOMETRY('POINT', 4326),
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

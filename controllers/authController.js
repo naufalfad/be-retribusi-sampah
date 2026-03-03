@@ -91,8 +91,20 @@ exports.registerPenagih = async (req, res) => {
         const newPenagih = await Penagih.create({
             username,
             password: hashedPassword,
-            kelurahan
+            kelurahan,
+            role: 'Penagih'
         });
+
+        await recordLog(req, {
+            action: 'CREATE_DATA_PENAGIH',
+            module: 'MANAJEMEN_PENAGIH',
+            description: `Petugas menambahkan Penagih baru ${newPenagih.username}`,
+            oldData: null,
+            newData: {
+                username: newPenagih.username
+            }
+        });
+
         res.status(201).json({
             message: 'Register berhasil',
             penagih: {
@@ -103,6 +115,38 @@ exports.registerPenagih = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: error.message });
+    }
+};
+
+exports.loginPenagih = async (req, res) => {
+    try {
+        const { username, password } = req.body;
+
+        const userPenagih = await Penagih.findOne({ where: { username } });
+        if (!userPenagih) return res.status(404).json({ message: 'User tidak ditemukan' });
+
+        const isPasswordValid = await bcrypt.compare(password, userPenagih.password);
+        if (!isPasswordValid) return res.status(401).json({ message: 'Password salah' });
+
+        const token = jwt.sign(
+            { id_penagih: userPenagih.id_penagih, username: userPenagih.username, kelurahan: userPenagih.kelurahan, role: userPenagih.role },
+            SECRET_KEY,
+            { expiresIn: '1d' }
+        );
+
+        res.json({
+            message: 'Login berhasil',
+            user: {
+                username: userPenagih.username,
+                kelurahan: userPenagih.kelurahan,
+                id_penagih: userPenagih.id_penagih,
+                role: userPenagih.role
+            },
+            token
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Terjadi kesalahan server', error: error.message });
     }
 };
 
@@ -198,6 +242,55 @@ exports.resetStaffPassword = async (req, res) => {
     }
 };
 
+exports.resetPenagihPassword = async (req, res) => {
+    try {
+        const { id_penagih } = req.params;
+        const { newPassword } = req.body;
+
+        // 1. Validasi Input
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password baru minimal 6 karakter.'
+            });
+        }
+
+        // 2. Cari Staff
+        const penagih = await Penagih.findByPk(id_penagih);
+        if (!penagih) {
+            return res.status(404).json({
+                success: false,
+                message: 'Staff tidak ditemukan.'
+            });
+        }
+
+        // 3. Hash Password Baru
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // 4. Update di Database
+        await penagih.update({ password: hashedPassword });
+
+        await recordLog(req, {
+            action: 'UPDATE_DATA_PENAGIH',
+            module: 'MANAJEMEN_PENAGIH',
+            description: `Petugas mengubah password Penagih ${penagih.username}`,
+            oldData: null,
+            newData: {
+                username: penagih.username
+            }
+        });
+
+        res.status(200).json({
+            success: true,
+            message: `Password untuk staff ${penagih.username} berhasil diperbarui.`
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 exports.deleteStaff = async (req, res) => {
     try {
         const { id_staff } = req.params;
@@ -220,7 +313,7 @@ exports.deleteStaff = async (req, res) => {
         await staff.destroy();
 
         await recordLog(req, {
-            action: 'UPDATE_DATA_STAFF',
+            action: 'DELETE_DATA_STAFF',
             module: 'MANAJEMEN_STAFF',
             description: `Petugas menghapus akun Staff ${staff.username}`,
             oldData: null,
@@ -234,5 +327,78 @@ exports.deleteStaff = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.deletePenagih = async (req, res) => {
+    try {
+        const { id_penagih } = req.params;
+
+        // 1. Cari staff
+        const penagih = await Penagih.findByPk(id_penagih);
+        if (!penagih) {
+            return res.status(404).json({
+                success: false,
+                message: 'Penagih tidak ditemukan.'
+            });
+        }
+
+        // 2. (Opsional) Proteksi agar admin tidak menghapus dirinya sendiri
+        if (req.user.id_penagih === parseInt(id_penagih)) {
+            return res.status(400).json({ message: 'Anda tidak dapat menghapus akun Anda sendiri.' });
+        }
+
+        // 3. Hapus dari database
+        await penagih.destroy();
+
+        await recordLog(req, {
+            action: 'DELETE_DATA_PENAGIH',
+            module: 'MANAJEMEN_PENAGIH',
+            description: `Petugas menghapus akun Penagih ${penagih.username}`,
+            oldData: null,
+        });
+
+        res.status(200).json({
+            success: true,
+            message: `Akun penagih @${penagih.username} telah berhasil dihapus secara permanen.`
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.getAllPenagih = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const offset = (page - 1) * limit;
+
+        // Gunakan findAndCountAll agar ada metadata pagination
+        const { count, rows } = await Penagih.findAndCountAll({
+            where: {
+                username: { [Op.iLike]: `%${search}%` }
+            },
+            limit: limit,
+            offset: offset,
+            order: [['createdAt', 'DESC']]
+        });
+
+        const totalPages = Math.ceil(count / limit);
+
+        res.status(200).json({
+            status: 'success',
+            pagination: {
+                total_items: count,
+                total_pages: totalPages,
+                current_page: page,
+                items_per_page: limit
+            },
+            data: rows
+        });
+    } catch (error) {
+        res.status(500).json({ status: 'error', message: error.message });
     }
 };

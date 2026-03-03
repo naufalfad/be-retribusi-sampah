@@ -36,13 +36,6 @@ module.exports = {
         createdAt: new Date(),
         updatedAt: new Date()
       },
-      {
-        username: 'test.penagih@geocitra.com',
-        password: hashedPassword,
-        role: 'Penagih',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
     ], {});
   },
 
