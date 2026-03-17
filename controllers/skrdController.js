@@ -255,7 +255,13 @@ exports.unpaidSkrdList = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const search = req.query.search || '';
+        const kelurahan = req.query.kelurahan;
         const offset = (page - 1) * limit;
+
+        let whereObjek = {};
+        if (kelurahan) {
+            whereObjek.kelurahan_objek = kelurahan;
+        }
 
         // 2. Eksekusi findAndCountAll
         const { count, rows } = await Skrd.findAndCountAll({
@@ -268,7 +274,8 @@ exports.unpaidSkrdList = async (req, res) => {
             include: [
                 {
                     model: Objek,
-                    attributes: ['id_objek', 'npor_objek', 'nama_objek', 'alamat_objek', 'tarif_pokok_objek'],
+                    where: whereObjek,
+                    attributes: ['id_objek', 'npor_objek', 'nama_objek', 'kelurahan_objek', 'tarif_pokok_objek'],
                     include: [
                         {
                             model: Subjek,

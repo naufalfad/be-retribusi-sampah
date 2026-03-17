@@ -90,7 +90,7 @@ exports.getDetailedReport = async (req, res) => {
         } else {
             // LAPORAN 2, 3, 4: Penerimaan (Tahunan/Bulanan/Wilayah)
             data = await Skrd.findAll({
-                attributes: ['id_skrd', 'no_skrd', 'createdAt', 'periode_bulan', 'periode_tahun'],
+                attributes: ['id_skrd', 'no_skrd', 'status', 'createdAt', 'periode_bulan', 'periode_tahun'],
                 where: whereSkrd,
                 include: [
                     {
@@ -446,6 +446,118 @@ exports.getPenagihStats = async (req, res) => {
 
     } catch (error) {
         console.error("Error Penagih Stats:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.exportPenerimaanPdf = async (req, res) => {
+    try {
+        const { type, year, month, kecamatan, kategori, jenis_layanan } = req.query;
+
+        let whereSsrd = { payment_status: { [Op.in]: ['paid', 'partial'] } };
+        let whereObjek = {};
+        let whereKelas = {};
+
+        // 1. Filter Waktu (Berdasarkan paid_at di SSRD)
+        if (year) {
+            const startDate = new Date(`${year}-01-01`);
+            const endDate = new Date(`${year}-12-31T23:59:59`);
+
+            if (month && type !== 'tahunan') {
+                const startMonth = new Date(year, month - 1, 1);
+                const endMonth = new Date(year, month, 0, 23, 59, 59);
+                whereSsrd.paid_at = { [Op.between]: [startMonth, endMonth] };
+            } else {
+                whereSsrd.paid_at = { [Op.between]: [startDate, endDate] };
+            }
+        }
+
+        // 2. Filter Wilayah (Kecamatan)
+        if (type === 'wilayah' && kecamatan) {
+            whereObjek.kecamatan_objek = kecamatan;
+        }
+
+        // 3. Filter Kategori (Rumah Tinggal / Non Rumah Tinggal)
+        if (type === 'kategori' && kategori) {
+            whereObjek.kategori_objek = kategori;
+        }
+
+        // 4. Filter Jenis (Nama Kelas)
+        if (type === 'jenis' && jenis_layanan) {
+            whereKelas.nama_kelas = jenis_layanan;
+        }
+
+        // 5. Eksekusi Query
+        const data = await Ssrd.findAll({
+            where: whereSsrd,
+            include: [{
+                model: Skrd,
+                required: true,
+                include: [
+                    {
+                        model: Objek,
+                        where: whereObjek,
+                        required: true,
+                        include: [
+                            {
+                                model: Subjek,
+                                attributes: ['nama_subjek', 'npwrd_subjek']
+                            },
+                            {
+                                model: Kelas,
+                                as: 'kelas',
+                                where: whereKelas,
+                                required: true
+                            }
+                        ]
+                    }
+                ]
+            }],
+            order: [['paid_at', 'ASC']]
+        });
+
+        // 6. Ambil Config Pemda (Logo, Nama Pejabat)
+        const config = await FormSurat.findOne();
+
+        // 7. Generate Info Filter untuk Judul Laporan
+        const monthNames = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        let filterLabel = `TAHUN ${year}`;
+        if (month && type !== 'tahunan') filterLabel = `${monthNames[month].toUpperCase()} ${year}`;
+        if (kecamatan) filterLabel += ` - KEC. ${kecamatan.toUpperCase()}`;
+        if (kategori) filterLabel += ` - ${kategori.toUpperCase()}`;
+        if (jenis_layanan) filterLabel += ` - ${jenis_layanan.toUpperCase()}`;
+
+        // 8. Render HTML & Convert to PDF
+        const html = renderReportHtml({
+            data,
+            type: type.toUpperCase(),
+            config,
+            filterInfo: filterLabel
+        });
+
+        const browser = await getBrowser();
+        const page = await browser.newPage();
+
+        await page.setContent(html, { waitUntil: 'networkidle0' });
+        const pdf = await page.pdf({
+            format: 'A4',
+            landscape: true,
+            printBackground: true,
+            margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+        });
+
+        await page.close();
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Length': pdf.length,
+            'Content-Disposition': `attachment; filename=LAPORAN_PENERIMAAN_${type.toUpperCase()}.pdf`
+        });
+
+        return res.send(pdf);
+
+    } catch (error) {
+        console.error("Export Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

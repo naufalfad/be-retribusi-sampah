@@ -509,12 +509,11 @@ exports.submitAuditObjek = async (req, res) => {
         const {
             id_objek,
             id_kelas_temuan,
-            tgl_mulai_pelanggaran,
             catatan_audit,
             nama_objek, alamat_objek, rt_rw, kecamatan_objek, kelurahan_objek, latitude, longitude,
             tarif_audit,
             durasi_audit,
-            total_terhutang,
+            volume_audit,
             total_terbayar,
             total_wajib_bayar
         } = req.body;
@@ -537,11 +536,31 @@ exports.submitAuditObjek = async (req, res) => {
             kelurahan_objek,
             id_kelas: id_kelas_temuan,
             tarif_pokok_objek: tarif_audit,
-            kategori_objek: isNonRumah ? 'Non Rumah Tinggal' : 'Rumah Tinggal', // Sekarang isNonRumah sudah ada
+            kategori_objek: isNonRumah ? 'Non Rumah Tinggal' : 'Rumah Tinggal',
             koordinat_objek: sequelize.fn('ST_GeomFromText', `POINT(${longitude} ${latitude})`, 4326)
         }, { transaction });
 
-        if (parseFloat(total_wajib_bayar) > 0) {
+        const tarif = parseFloat(tarif_audit) || 0;
+        const terbayar = parseFloat(total_terbayar) || 0;
+        const volume = parseFloat(volume_audit) || 0;
+        const durasi = parseFloat(durasi_audit) || 0;
+
+        // --- LOGIKA PERHITUNGAN ---
+        let totalSeharusnya = 0;
+        if (isNonRumah) {
+            const masaBulan = durasi > 0 ? durasi : 1;
+            totalSeharusnya = (tarif * volume) * masaBulan;
+        } else {
+            totalSeharusnya = tarif * durasi;
+        }
+
+        const selisihInputFE = parseFloat(total_wajib_bayar) || 0;
+        const pokokKurangBayar = selisihInputFE > 0 ? selisihInputFE : Math.max(0, totalSeharusnya - terbayar);
+
+        if (pokokKurangBayar > 0) {
+            const nilaiDenda = pokokKurangBayar * 0.5;
+            const grandTotalBayar = pokokKurangBayar + nilaiDenda;
+
             const now = new Date();
             const dueDate = new Date();
             dueDate.setDate(now.getDate() + 30);
@@ -551,11 +570,11 @@ exports.submitAuditObjek = async (req, res) => {
                 no_skrd: `SKRDKB-AUDIT-${Date.now()}`,
                 periode_bulan: now.getMonth() + 1,
                 periode_tahun: now.getFullYear(),
-                masa: durasi_audit,
+                masa: isNonRumah ? 1 : durasi,
                 jatuh_tempo: dueDate,
                 tipe_skrd: 'Kurang Bayar',
-                total_bayar: total_wajib_bayar,
-                denda: parseFloat(total_wajib_bayar) - (parseFloat(total_terhutang) - parseFloat(total_terbayar)),
+                total_bayar: grandTotalBayar,
+                denda: nilaiDenda,
                 status: 'unpaid',
                 keterangan: catatan_audit
             }, { transaction });
@@ -565,9 +584,9 @@ exports.submitAuditObjek = async (req, res) => {
         await recordLog(req, {
             action: 'MANUAL_AUDIT_FINANSIAL',
             module: 'PEMERIKSAAN',
-            description: `Audit Manual NPOR ${objek.npor_objek}. Tagihan baru: ${total_wajib_bayar}`,
+            description: `Audit NPOR ${objek.npor_objek}. Kategori: ${isNonRumah ? 'Bisnis' : 'Rumah'}. Pokok: ${pokokKurangBayar}, Denda: ${pokokKurangBayar * 0.5}`,
             oldData: null,
-            newData: req.body
+            newData: { ...req.body, total_akhir: pokokKurangBayar * 1.5 }
         }, { transaction });
 
         await transaction.commit();

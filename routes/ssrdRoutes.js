@@ -10,5 +10,6 @@ router.get('/pdf/:id_ssrd', ssrdController.cetakSsrdPdf);
 router.post('/pembayaran-penagih', auth, ssrdController.paymentPenagih);
 router.post('/verifikasi-rekon', ssrdController.verifikasiPembayaran);
 router.get('/list-pending', ssrdController.getListPending);
+router.get('/paid-list', ssrdController.getListSsrdPaid);
 
 module.exports = router;
