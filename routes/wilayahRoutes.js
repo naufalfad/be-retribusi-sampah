@@ -3,7 +3,6 @@ const router = express.Router();
 const wilayahController = require('../controllers/wilayahController');
 const auth = require('../middleware/authMiddleware');
 
-router.get('/kelurahan/search', wilayahController.searchKelurahan);
 router.get('/penagih-wilayah', auth, wilayahController.getWilayahKerjaDetail);
 router.get("/provinsi", wilayahController.getProvinsi);
 router.get("/kabupaten/:id_provinsi", wilayahController.getKabupaten);

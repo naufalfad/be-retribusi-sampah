@@ -4,23 +4,23 @@ const {
     RefKecamatan,
     RefKabupaten,
     RefProvinsi,
-    Skrd, Objek, Penagih, sequelize
+    Skrd, Objek, PetugasLapangan, sequelize
 } = require('../models');
 
 exports.searchKelurahan = async (req, res) => {
     try {
         const { q } = req.query;
 
-        if (!q || q.length < 3) {
-            return res.json({ data: [] });
-        }
-
-        const data = await RefKelurahan.findAll({
-            where: {
+        const whereClause = q
+            ? {
                 name: {
                     [Op.iLike]: `%${q}%`
                 }
-            },
+            }
+            : {};
+
+        const data = await RefKelurahan.findAll({
+            where: whereClause,
             limit: 20,
             include: [
                 {
@@ -42,16 +42,19 @@ exports.searchKelurahan = async (req, res) => {
             ]
         });
 
-        const result = data.map(item => ({
-            id_kelurahan: item.id,
-            kelurahan: item.name,
-            kecamatan: item.RefKecamatan?.name,
-            kabupaten: item.RefKecamatan?.RefKabupaten?.name,
-            provinsi: item.RefKecamatan?.RefKabupaten?.RefProvinsi?.name,
-            kodepos: item.kodepos
-        }));
+        // const result = data.map(item => ({
+        //     id_kelurahan: item.id,
+        //     kelurahan: item.name,
+        //     kecamatan: item.RefKecamatan?.name,
+        //     kabupaten: item.RefKecamatan?.RefKabupaten?.name,
+        //     provinsi: item.RefKecamatan?.RefKabupaten?.RefProvinsi?.name,
+        //     kodepos: item.kodepos
+        // }));
 
-        res.json({ data: result });
+        res.json({
+            success: true,
+            data: data
+        });
 
     } catch (error) {
         console.error(error);
@@ -59,12 +62,12 @@ exports.searchKelurahan = async (req, res) => {
     }
 };
 
-// Wilayah kerja Penagih
+// Wilayah kerja PetugasLapangan
 exports.getWilayahKerjaDetail = async (req, res) => {
     try {
-        // 1. Ambil Identitas Penagih
-        const idPenagih = req.user.id_penagih;
-        const profil = await Penagih.findByPk(idPenagih);
+        // 1. Ambil Identitas PetugasLapangan
+        const idPetugasLapangan = req.user.id_petugas;
+        const profil = await PetugasLapangan.findByPk(idPetugasLapangan);
 
         if (!profil) {
             return res.status(404).json({ success: false, message: 'Profil tidak ditemukan' });
