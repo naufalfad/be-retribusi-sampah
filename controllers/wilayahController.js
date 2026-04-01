@@ -42,15 +42,6 @@ exports.searchKelurahan = async (req, res) => {
             ]
         });
 
-        // const result = data.map(item => ({
-        //     id_kelurahan: item.id,
-        //     kelurahan: item.name,
-        //     kecamatan: item.RefKecamatan?.name,
-        //     kabupaten: item.RefKecamatan?.RefKabupaten?.name,
-        //     provinsi: item.RefKecamatan?.RefKabupaten?.RefProvinsi?.name,
-        //     kodepos: item.kodepos
-        // }));
-
         res.json({
             success: true,
             data: data
