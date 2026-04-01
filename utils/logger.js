@@ -9,7 +9,7 @@ const { LogAktivitas } = require('../models');
 const recordLog = async (req, { action, module, description, oldData = null, newData = null }, options = {}) => {
     try {
         // Ambil info user dari middleware autentikasi (biasanya disimpan di req.user)
-        const userId = req.user ? req.user.id_staff || req.user.id_penagih : null;
+        const userId = req.user ? req.user.id_staff || req.user.id_petugas : null;
         const userRole = req.user ? req.user.role : 'GUEST';
 
         // Ambil IP Address (antisipasi jika lewat proxy/load balancer)

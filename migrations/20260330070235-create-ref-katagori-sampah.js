@@ -2,24 +2,21 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('dat_penagih', {
-      id_penagih: {
+    await queryInterface.createTable('ref_kategori_sampah', {
+      id_kategori: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      username: {
+      nama_kategori: {
         type: Sequelize.STRING
       },
-      password: {
-        type: Sequelize.STRING
+      poin_per_m3: {
+        type: Sequelize.DECIMAL
       },
-      kelurahan: {
-        type: Sequelize.STRING
-      },
-      role: {
-        type: Sequelize.STRING
+      satuan: {
+        type: Sequelize.TEXT
       },
       createdAt: {
         allowNull: false,
@@ -32,6 +29,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('dat_penagih');
+    await queryInterface.dropTable('ref_kategori_sampah');
   }
 };

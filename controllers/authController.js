@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Staff, Penagih } = require('../models');
+const { Staff, PetugasLapangan } = require('../models');
 const { Op } = require('sequelize');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -79,37 +79,37 @@ exports.loginStaff = async (req, res) => {
     }
 };
 
-exports.registerPenagih = async (req, res) => {
+exports.registerPetugasLapangan = async (req, res) => {
     try {
-        const { username, password, kelurahan } = req.body;
-        if (!username || !password || !kelurahan) {
+        const { username, password, kelurahan, role } = req.body;
+        if (!username || !password || !kelurahan || !role) {
             return res.status(400).json({ message: 'Username, password, dan kelurahan harus diisi.' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newPenagih = await Penagih.create({
+        const newPetugasLapangan = await PetugasLapangan.create({
             username,
             password: hashedPassword,
             kelurahan,
-            role: 'Penagih'
+            role
         });
 
         await recordLog(req, {
-            action: 'CREATE_DATA_PENAGIH',
-            module: 'MANAJEMEN_PENAGIH',
-            description: `Petugas menambahkan Penagih baru ${newPenagih.username}`,
+            action: 'CREATE_DATA_PETUGAS_LAPANGAN',
+            module: 'MANAJEMEN_PETUGAS_LAPANGAN',
+            description: `Petugas menambahkan Petugas Lapangan baru ${newPetugasLapangan.username}`,
             oldData: null,
             newData: {
-                username: newPenagih.username
+                username: newPetugasLapangan.username
             }
         });
 
         res.status(201).json({
             message: 'Register berhasil',
-            penagih: {
-                username: newPenagih.username,
-                kelurahan: newPenagih.kelurahan
+            PetugasLapangan: {
+                username: newPetugasLapangan.username,
+                kelurahan: newPetugasLapangan.kelurahan
             }
         });
     } catch (error) {
@@ -118,18 +118,18 @@ exports.registerPenagih = async (req, res) => {
     }
 };
 
-exports.loginPenagih = async (req, res) => {
+exports.loginPetugasLapangan = async (req, res) => {
     try {
         const { username, password } = req.body;
 
-        const userPenagih = await Penagih.findOne({ where: { username } });
-        if (!userPenagih) return res.status(404).json({ message: 'User tidak ditemukan' });
+        const userPetugasLapangan = await PetugasLapangan.findOne({ where: { username } });
+        if (!userPetugasLapangan) return res.status(404).json({ message: 'User tidak ditemukan' });
 
-        const isPasswordValid = await bcrypt.compare(password, userPenagih.password);
+        const isPasswordValid = await bcrypt.compare(password, userPetugasLapangan.password);
         if (!isPasswordValid) return res.status(401).json({ message: 'Password salah' });
 
         const token = jwt.sign(
-            { id_penagih: userPenagih.id_penagih, username: userPenagih.username, kelurahan: userPenagih.kelurahan, role: userPenagih.role },
+            { id_petugas: userPetugasLapangan.id_petugas, username: userPetugasLapangan.username, kelurahan: userPetugasLapangan.kelurahan, role: userPetugasLapangan.role },
             SECRET_KEY,
             { expiresIn: '1d' }
         );
@@ -137,10 +137,10 @@ exports.loginPenagih = async (req, res) => {
         res.json({
             message: 'Login berhasil',
             user: {
-                username: userPenagih.username,
-                kelurahan: userPenagih.kelurahan,
-                id_penagih: userPenagih.id_penagih,
-                role: userPenagih.role
+                username: userPetugasLapangan.username,
+                kelurahan: userPetugasLapangan.kelurahan,
+                id_petugas: userPetugasLapangan.id_petugas,
+                role: userPetugasLapangan.role
             },
             token
         });
@@ -242,9 +242,9 @@ exports.resetStaffPassword = async (req, res) => {
     }
 };
 
-exports.resetPenagihPassword = async (req, res) => {
+exports.resetPetugasLapanganPassword = async (req, res) => {
     try {
-        const { id_penagih } = req.params;
+        const { id_petugas } = req.params;
         const { newPassword } = req.body;
 
         // 1. Validasi Input
@@ -256,8 +256,8 @@ exports.resetPenagihPassword = async (req, res) => {
         }
 
         // 2. Cari Staff
-        const penagih = await Penagih.findByPk(id_penagih);
-        if (!penagih) {
+        const PetugasLapangan = await PetugasLapangan.findByPk(id_petugas);
+        if (!PetugasLapangan) {
             return res.status(404).json({
                 success: false,
                 message: 'Staff tidak ditemukan.'
@@ -268,21 +268,21 @@ exports.resetPenagihPassword = async (req, res) => {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
 
         // 4. Update di Database
-        await penagih.update({ password: hashedPassword });
+        await PetugasLapangan.update({ password: hashedPassword });
 
         await recordLog(req, {
-            action: 'UPDATE_DATA_PENAGIH',
-            module: 'MANAJEMEN_PENAGIH',
-            description: `Petugas mengubah password Penagih ${penagih.username}`,
+            action: 'UPDATE_DATA_PETUGAS_LAPANGAN',
+            module: 'MANAJEMEN_PETUGAS_LAPANGAN',
+            description: `Petugas mengubah password Petugas Lapangan ${PetugasLapangan.username}`,
             oldData: null,
             newData: {
-                username: penagih.username
+                username: PetugasLapangan.username
             }
         });
 
         res.status(200).json({
             success: true,
-            message: `Password untuk staff ${penagih.username} berhasil diperbarui.`
+            message: `Password untuk staff ${PetugasLapangan.username} berhasil diperbarui.`
         });
 
     } catch (error) {
@@ -330,37 +330,37 @@ exports.deleteStaff = async (req, res) => {
     }
 };
 
-exports.deletePenagih = async (req, res) => {
+exports.deletePetugasLapangan = async (req, res) => {
     try {
-        const { id_penagih } = req.params;
+        const { id_petugas } = req.params;
 
         // 1. Cari staff
-        const penagih = await Penagih.findByPk(id_penagih);
-        if (!penagih) {
+        const PetugasLapangan = await PetugasLapangan.findByPk(id_petugas);
+        if (!PetugasLapangan) {
             return res.status(404).json({
                 success: false,
-                message: 'Penagih tidak ditemukan.'
+                message: 'PetugasLapangan tidak ditemukan.'
             });
         }
 
         // 2. (Opsional) Proteksi agar admin tidak menghapus dirinya sendiri
-        if (req.user.id_penagih === parseInt(id_penagih)) {
+        if (req.user.id_petugas === parseInt(id_petugas)) {
             return res.status(400).json({ message: 'Anda tidak dapat menghapus akun Anda sendiri.' });
         }
 
         // 3. Hapus dari database
-        await penagih.destroy();
+        await PetugasLapangan.destroy();
 
         await recordLog(req, {
-            action: 'DELETE_DATA_PENAGIH',
-            module: 'MANAJEMEN_PENAGIH',
-            description: `Petugas menghapus akun Penagih ${penagih.username}`,
+            action: 'DELETE_DATA_PETUGAS_LAPANGAN',
+            module: 'MANAJEMEN_PETUGAS_LAPANGAN',
+            description: `Petugas menghapus akun Petugas Lapangan ${PetugasLapangan.username}`,
             oldData: null,
         });
 
         res.status(200).json({
             success: true,
-            message: `Akun penagih @${penagih.username} telah berhasil dihapus secara permanen.`
+            message: `Akun PetugasLapangan @${PetugasLapangan.username} telah berhasil dihapus secara permanen.`
         });
 
     } catch (error) {
@@ -369,7 +369,7 @@ exports.deletePenagih = async (req, res) => {
     }
 };
 
-exports.getAllPenagih = async (req, res) => {
+exports.getAllPetugasLapangan = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
@@ -377,7 +377,7 @@ exports.getAllPenagih = async (req, res) => {
         const offset = (page - 1) * limit;
 
         // Gunakan findAndCountAll agar ada metadata pagination
-        const { count, rows } = await Penagih.findAndCountAll({
+        const { count, rows } = await PetugasLapangan.findAndCountAll({
             where: {
                 username: { [Op.iLike]: `%${search}%` }
             },

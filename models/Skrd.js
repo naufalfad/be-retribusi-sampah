@@ -8,6 +8,7 @@ module.exports = (sequelize, DataTypes) => {
       Skrd.belongsTo(models.Objek, { foreignKey: 'id_objek' });
       Skrd.hasOne(models.Ssrd, { foreignKey: 'id_skrd' });
       Skrd.hasMany(models.RefPelayananSkrd, { foreignKey: 'id_skrd', as: 'pelayanan' });
+      Skrd.hasMany(models.PenukaranPoin, { foreignKey: 'id_skrd' });
     }
   }
   Skrd.init({

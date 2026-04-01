@@ -1,4 +1,4 @@
-const { Objek, Kelas, Skrd, Subjek, RefPelayanan, RefPelayananSkrd, sequelize } = require('../models');
+const { Objek, Kelas, Skrd, Subjek, RefPelayanan, RefPelayananSkrd, PoinObjek, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { getSkrdHtml } = require('../services/skrdService');
 const { getBrowser } = require('../utils/puppeteerBrowser');
@@ -280,7 +280,11 @@ exports.unpaidSkrdList = async (req, res) => {
                         {
                             model: Subjek,
                             attributes: ['id_subjek', 'npwrd_subjek', 'nama_subjek']
-                        }
+                        },
+                        {
+                            model: PoinObjek,
+                            attributes: ['saldo_poin']
+                        },
                     ]
                 }
             ],

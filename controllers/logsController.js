@@ -76,7 +76,7 @@ exports.getAuditModules = async (req, res) => {
 
 exports.getRiwayatPenagih = async (req, res) => {
     try {
-        const idPenagih = req.user.id_penagih; // Dari token login penagih
+        const idPenagih = req.user.id_petugas; // Dari token login PetugasLapangan
 
         // Kita ambil data log aktivitas yang dilakukan oleh user ini 
         // dan gabungkan dengan data SSRD jika perlu
@@ -93,5 +93,32 @@ exports.getRiwayatPenagih = async (req, res) => {
         res.json({ success: true, data: logs });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+exports.getRiwayatPengangkut = async (req, res) => {
+    try {
+        const idPetugas = req.user.id_petugas;
+
+        const logs = await LogAktivitas.findAll({
+            where: {
+                id_user: idPetugas,
+                role: 'Pengangkut',
+                aksi: 'COLLECT_POIN'
+            },
+            order: [['createdAt', 'DESC']],
+            limit: 50
+        });
+
+        res.json({
+            success: true,
+            data: logs
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
 };

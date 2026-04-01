@@ -1,5 +1,5 @@
 const { Staff, LogAktivitas, Skrd, Ssrd, Objek,
-    Subjek, FormSurat, Kelas, Penagih, sequelize
+    Subjek, FormSurat, Kelas, PetugasLapangan, sequelize
 } = require('../models');
 const { Op, fn, col, literal } = require('sequelize');
 const renderReportHtml = require('../templates/reportTemplate');
@@ -298,7 +298,7 @@ exports.getBendaharaStats = async (req, res) => {
         }) || 0;
 
         // 3. Antrean Rekonsiliasi (SSRD Status Pending)
-        // Ini adalah setoran dari penagih atau upload mandiri yang belum divalidasi bendahara
+        // Ini adalah setoran dari PetugasLapangan atau upload mandiri yang belum divalidasi bendahara
         const antreanRekon = await Ssrd.count({
             where: { payment_status: 'pending' }
         });
@@ -350,16 +350,16 @@ exports.getBendaharaStats = async (req, res) => {
     }
 };
 
-// Dashboard Penagih
+// Dashboard PetugasLapangan
 exports.getPenagihStats = async (req, res) => {
     try {
-        // 1. Identifikasi Penagih dari Token
-        // Karena login penagih sekarang mandiri, ambil ID dari req.user.id_penagih
-        const idPenagih = req.user.id_penagih;
+        // 1. Identifikasi PetugasLapangan dari Token
+        // Karena login PetugasLapangan sekarang mandiri, ambil ID dari req.user.id_petugas
+        const idPetugasLapangan = req.user.id_petugas;
 
-        const profil = await Penagih.findByPk(idPenagih);
+        const profil = await PetugasLapangan.findByPk(idPetugasLapangan);
         if (!profil) {
-            return res.status(404).json({ success: false, message: 'Profil Penagih tidak ditemukan.' });
+            return res.status(404).json({ success: false, message: 'Profil PetugasLapangan tidak ditemukan.' });
         }
 
         const kelurahanTugas = profil.kelurahan;
@@ -445,7 +445,7 @@ exports.getPenagihStats = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Error Penagih Stats:", error);
+        console.error("Error PetugasLapangan Stats:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

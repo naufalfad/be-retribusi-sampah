@@ -14,6 +14,9 @@ module.exports = (sequelize, DataTypes) => {
       Objek.belongsTo(models.Kelas, { foreignKey: 'id_kelas', as: 'kelas' });
       Objek.hasMany(models.DokumenObjek, { foreignKey: 'id_objek' });
       Objek.hasMany(models.Skrd, { foreignKey: 'id_objek' });
+      Objek.hasOne(models.PoinObjek, { foreignKey: 'id_objek' });
+      Objek.hasMany(models.Pengangkutan, { foreignKey: 'id_objek' });
+      Objek.hasMany(models.PenukaranPoin, { foreignKey: 'id_objek' });
     }
   }
   Objek.init({

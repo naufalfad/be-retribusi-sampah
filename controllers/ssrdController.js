@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Skrd, Ssrd, Objek, Subjek, FormSurat, sequelize } = require('../models');
+const { Skrd, Ssrd, Objek, PoinObjek, PenukaranPoin, sequelize } = require('../models');
 const { getSsrdHtml } = require('../services/ssrdService');
 const { getBrowser } = require('../utils/puppeteerBrowser');
 const recordLog = require('../utils/logger');
@@ -54,6 +54,8 @@ exports.buatSsrd = async (req, res) => {
 
         const uniqueId = Date.now().toString().slice(-6);
         const no_ssrd = `SSRD/${dateStr}/${uniqueId}`;
+        const usedPoints = parseInt(points_used) || 0;
+        const pointValue = usedPoints * 10;
 
         /* ================= SIMPAN SSRD ================= */
         const newSsrd = await Ssrd.create({
@@ -62,7 +64,9 @@ exports.buatSsrd = async (req, res) => {
             payment_method,
             amount_paid,
             paid_at: paidDate,
-            payment_status: 'paid'
+            payment_status: 'paid',
+            points_used: usedPoints,
+            point_value: pointValue
         }, { transaction: t });
 
         /* ================= UPDATE SKRD ================= */
@@ -249,7 +253,8 @@ exports.paymentPenagih = async (req, res) => {
             id_skrd,
             payment_method,
             amount_paid,
-            paid_at
+            paid_at,
+            points_used = 0
         } = req.body;
 
         if (!id_skrd || !payment_method || !amount_paid || !paid_at) {
@@ -259,7 +264,10 @@ exports.paymentPenagih = async (req, res) => {
             });
         }
 
-        const skrd = await Skrd.findByPk(id_skrd, { transaction: t });
+        const skrd = await Skrd.findByPk(id_skrd, {
+            include: [{ model: Objek }],
+            transaction: t
+        });
 
         if (!skrd) {
             await t.rollback();
@@ -292,6 +300,48 @@ exports.paymentPenagih = async (req, res) => {
         const uniqueId = Date.now().toString().slice(-6);
         const no_ssrd = `SSRD/${dateStr}/${uniqueId}`;
 
+        // NORMALISASI POINT
+        const usedPoints = parseInt(points_used) || 0;
+        const pointValue = usedPoints * 10;
+
+        // HANDLE POIN (TANPA LIHAT PAYMENT METHOD)
+        if (usedPoints > 0) {
+            const poinObjek = await PoinObjek.findOne({
+                where: { id_objek: skrd.id_objek }, // pastikan field ini benar
+                transaction: t,
+                lock: t.LOCK.UPDATE
+            });
+
+            if (!poinObjek) {
+                await t.rollback();
+                return res.status(404).json({
+                    message: 'Data poin objek tidak ditemukan'
+                });
+            }
+
+            if (poinObjek.saldo_poin < usedPoints) {
+                await t.rollback();
+                return res.status(400).json({
+                    message: 'Saldo poin tidak mencukupi'
+                });
+            }
+
+            // UPDATE SALDO
+            await poinObjek.update({
+                saldo_poin: poinObjek.saldo_poin - usedPoints,
+                total_poin_digunakan: (poinObjek.total_poin_digunakan || 0) + usedPoints
+            }, { transaction: t });
+
+            // INSERT PENUKARAN
+            await PenukaranPoin.create({
+                id_objek: skrd.id_objek,
+                id_skrd,
+                jumlah_poin: usedPoints,
+                nilai_rupiah: usedPoints * 10,
+                status: 'used'
+            }, { transaction: t });
+        }
+
         /* ================= SIMPAN SSRD ================= */
         const newSsrd = await Ssrd.create({
             id_skrd,
@@ -299,7 +349,9 @@ exports.paymentPenagih = async (req, res) => {
             payment_method,
             amount_paid,
             paid_at: paidDate,
-            payment_status: 'pending'
+            payment_status: 'pending',
+            points_used: usedPoints,
+            point_value: pointValue
         }, { transaction: t });
 
         /* ================= UPDATE SKRD ================= */
@@ -310,12 +362,13 @@ exports.paymentPenagih = async (req, res) => {
         await recordLog(req, {
             action: 'COLLECT_PAYMENT_FIELD',
             module: 'PENAGIHAN_LAPANGAN',
-            description: `Penagih ${req.user.username} menerima setoran ${payment_method} senilai Rp${amount_paid.toLocaleString()} dari SKRD ${skrd.no_skrd}`,
+            description: `Penagih ${req.user.username} menerima setoran ${payment_method} senilai Rp${amount_paid.toLocaleString()} ${points_used > 0 ? `dengan potongan ${points_used} poin` : ''} dari SKRD ${skrd.no_skrd}`,
             oldData: null,
             newData: {
                 no_ssrd: newSsrd.no_ssrd,
                 nominal: amount_paid,
-                metode: payment_method
+                metode: payment_method,
+                poin_digunakan: points_used
             }
         }, { transaction: t });
 
@@ -348,7 +401,7 @@ exports.verifikasiPembayaran = async (req, res) => {
     const transaction = await sequelize.transaction();
 
     try {
-        // 1. Cari data SSRD (Pending) yang dikirim penagih
+        // 1. Cari data SSRD (Pending) yang dikirim PetugasLapangan
         const ssrdPending = await Ssrd.findByPk(id_ssrd, {
             include: [{ model: Skrd, include: [Objek] }],
             transaction

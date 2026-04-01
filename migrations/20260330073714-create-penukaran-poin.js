@@ -2,12 +2,19 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('dat_ssrd', {
-      id_ssrd: {
+    await queryInterface.createTable('dat_penukaran_poin', {
+      id_penukaran: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
+      },
+      id_objek: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: 'dat_objek',
+          key: 'id_objek'
+        }
       },
       id_skrd: {
         type: Sequelize.INTEGER,
@@ -16,32 +23,14 @@ module.exports = {
           key: 'id_skrd'
         }
       },
-      no_ssrd: {
-        type: Sequelize.STRING
-      },
-      payment_method: {
-        type: Sequelize.STRING
-      },
-      amount_paid: {
-        type: Sequelize.DECIMAL
-      },
-      paid_at: {
-        type: Sequelize.DATE
-      },
-      payment_status: {
-        type: Sequelize.STRING
-      },
-      rejected_reason: {
-        type: Sequelize.STRING
-      },
-      catatan_bendahara: {
-        type: Sequelize.STRING
-      },
-      points_used: {
+      jumlah_poin: {
         type: Sequelize.INTEGER
       },
-      point_value: {
+      nilai_rupiah: {
         type: Sequelize.DECIMAL
+      },
+      status: {
+        type: Sequelize.STRING
       },
       createdAt: {
         allowNull: false,
@@ -54,6 +43,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('dat_ssrd');
+    await queryInterface.dropTable('dat_penukaran_poin');
   }
 };

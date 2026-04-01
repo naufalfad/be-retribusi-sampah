@@ -7,6 +7,9 @@ module.exports = function renderSsrdHtml({ ssrd, skrd, template }) {
     const tahun = skrd?.periode_tahun ? formatTahun(skrd.periode_tahun) : '-';
     const tanggalBayar = ssrd?.paid_at ? formatTanggalID(ssrd.paid_at) : '-';
 
+    const poinDigunakan = ssrd?.points_used || 0;
+    const nilaiPoin = ssrd?.point_value || 0;
+
     // Logika Logo dan TTD sesuai template SKRD Anda
     const logoUrl = template?.logo
         ? `${process.env.API_BASE_URL}/${template.logo.replace(/\\/g, '/')}`
@@ -106,8 +109,15 @@ module.exports = function renderSsrdHtml({ ssrd, skrd, template }) {
                 <td width="3%" style="border-right:none">a.</td>
                 <td width="27%" style="border-left:none; border-right:none">Telah menerima uang sebesar</td>
                 <td width="2%" style="border-left:none; border-right:none">:</td>
-                <td style="border-left:none">
-                    <span class="dotted-line"># <b>${ssrd.amount_paid || '-'}</b> #</span>
+                <td>
+                    <span class="dotted-line">
+                        #
+                        <b>${Number(ssrd.amount_paid).toLocaleString('id-ID')}</b>
+                        ${poinDigunakan > 0 ? `
+                            + <b>${Number(nilaiPoin).toLocaleString('id-ID')}</b> (Poin)
+                        ` : ''}
+                        #
+                    </span>
                 </td>
             </tr>
             <tr>
@@ -142,6 +152,19 @@ module.exports = function renderSsrdHtml({ ssrd, skrd, template }) {
                     <span class="dotted-line">Retribusi Pelayanan Persampahan/Kebersihan Masa ${skrd.masa} ${tahun}</span>
                 </td>
             </tr>
+            ${poinDigunakan > 0 ? `
+                <tr>
+                    <td style="border-right:none">e.</td>
+                    <td style="border-left:none; border-right:none">Potongan Poin</td>
+                    <td style="border-left:none; border-right:none">:</td>
+                    <td style="border-left:none">
+                        <span class="dotted-line">
+                            ${poinDigunakan.toLocaleString('id-ID')} poin 
+                            (Rp ${Number(nilaiPoin).toLocaleString('id-ID')})
+                        </span>
+                    </td>
+                </tr>
+                ` : ''}
         </table>
 
         <!-- TABLE REKENING -->

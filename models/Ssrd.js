@@ -27,6 +27,8 @@ module.exports = (sequelize, DataTypes) => {
     payment_status: DataTypes.STRING,
     rejected_reason: DataTypes.STRING,
     catatan_bendahara: DataTypes.STRING,
+    points_used: DataTypes.INTEGER,
+    point_value: DataTypes.DECIMAL
   }, {
     sequelize,
     modelName: 'Ssrd',

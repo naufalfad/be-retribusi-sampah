@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { Op } = require('sequelize');
-const { RefProvinsi, RefKabupaten, RefKecamatan, RefKelurahan, RefKodepos, RefPelayanan,
+const { PoinObjek, RefPelayanan,
     Objek, DokumenObjek, Kelas, Subjek, Skrd, sequelize } = require('../models');
 const { findOrCreateByName } = require('../utils/refHelper');
 const recordLog = require('../utils/logger');
@@ -237,6 +237,10 @@ exports.getListObjek = async (req, res) => {
                         'createdAt',
                         'status'
                     ],
+                },
+                {
+                    model: PoinObjek,
+                    attributes: ['saldo_poin']
                 },
             ],
             limit: limit,
