@@ -641,6 +641,16 @@ exports.getListPending = async (req, res) => {
 exports.initiateMidtransPayment = async (req, res) => {
     try {
         const { id_skrd, use_points } = req.body;
+        const role = req.user.role;
+
+        const frontendUrl = process.env.FRONTEND_URL;
+        let finishUrl = "";
+
+        if (role === 'Penagih') {
+            finishUrl = `${frontendUrl}/penagih/list-skrd`;
+        } else {
+            finishUrl = `${frontendUrl}/skrd`;
+        }
 
         // 1. Ambil data SKRD
         const skrd = await Skrd.findByPk(id_skrd, {
@@ -671,10 +681,16 @@ exports.initiateMidtransPayment = async (req, res) => {
                 order_id: orderId,
                 gross_amount: finalAmount
             },
+            callbacks: {
+                finish: finishUrl,
+                error: finishUrl,
+                pending: finishUrl
+            },
             customer_details: {
                 first_name: skrd.Objek.Subjek.nama_subjek,
                 email: skrd.Objek.Subjek.email_subjek,
-                phone: skrd.Objek.Subjek.telepon_subjek
+                phone: skrd.Objek.Subjek.telepon_subjek,
+                notes: role === 'Penagih' ? `Bantuan petugas: ${req.user.username}` : ""
             },
             item_details: [
                 {
@@ -705,7 +721,8 @@ exports.initiateMidtransPayment = async (req, res) => {
         res.json({
             success: true,
             snap_token: transaction.token,
-            order_id: orderId
+            order_id: orderId,
+            redirect_url: finishUrl
         });
 
     } catch (error) {
