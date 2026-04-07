@@ -13,5 +13,6 @@ router.put('/reset-password-petugas/:id_petugas', auth, authController.resetPetu
 router.delete('/delete-staff/:id_staff', auth, authController.deleteStaff);
 router.delete('/delete-petugas/:id_petugas', auth, authController.deletePetugasLapangan);
 router.post('/login-petugas-lapangan', authController.loginPetugasLapangan);
+router.post('/login-subjek', authController.loginSubjek);
 
 module.exports = router;

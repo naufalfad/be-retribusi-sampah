@@ -1,8 +1,18 @@
+require('dotenv').config();
 const { Op } = require('sequelize');
-const { Skrd, Ssrd, Objek, PoinObjek, PenukaranPoin, sequelize } = require('../models');
+const { Skrd, Ssrd, Objek, Subjek, PoinObjek, PenukaranPoin, sequelize } = require('../models');
 const { getSsrdHtml } = require('../services/ssrdService');
 const { getBrowser } = require('../utils/puppeteerBrowser');
 const recordLog = require('../utils/logger');
+const midtransClient = require('midtrans-client');
+
+// Setup Midtrans Snap
+let snap = new midtransClient.Snap({
+    isProduction: false, // Set ke true jika sudah live
+    serverKey: process.env.MIDTRANS_SERVER_KEY,
+    clientKey: process.env.MIDTRANS_CLIENT_KEY
+});
+
 
 exports.buatSsrd = async (req, res) => {
     const t = await sequelize.transaction();
@@ -627,3 +637,133 @@ exports.getListPending = async (req, res) => {
 //         res.status(500).json({ success: false, message: 'Gagal memproses audit rekonsiliasi' });
 //     }
 // };
+
+exports.initiateMidtransPayment = async (req, res) => {
+    try {
+        const { id_skrd, use_points } = req.body;
+
+        // 1. Ambil data SKRD
+        const skrd = await Skrd.findByPk(id_skrd, {
+            include: [{ model: Objek, include: [Subjek, PoinObjek] }]
+        });
+
+        if (!skrd || skrd.status === 'paid') {
+            return res.status(400).json({ message: "Tagihan tidak tersedia atau sudah lunas" });
+        }
+
+        // 2. Logika Poin (Redeem)
+        let discount = 0;
+        let pointsToUse = 0;
+        const POINT_VALUE = 10; // 1 Poin = Rp 10
+
+        if (use_points) {
+            const saldoPoin = skrd.Objek.PoinObjek?.saldo_poin || 0;
+            discount = Math.min(saldoPoin * POINT_VALUE, parseFloat(skrd.total_bayar));
+            pointsToUse = discount / POINT_VALUE;
+        }
+
+        const finalAmount = Math.round(parseFloat(skrd.total_bayar) - discount);
+        const orderId = `REKAS-${skrd.id_skrd}-${Date.now()}`;
+
+        // 3. Payload Midtrans
+        let parameter = {
+            transaction_details: {
+                order_id: orderId,
+                gross_amount: finalAmount
+            },
+            customer_details: {
+                first_name: skrd.Objek.Subjek.nama_subjek,
+                email: skrd.Objek.Subjek.email_subjek,
+                phone: skrd.Objek.Subjek.telepon_subjek
+            },
+            item_details: [
+                {
+                    id: skrd.no_skrd,
+                    price: finalAmount,
+                    quantity: 1,
+                    name: `Retribusi Sampah - ${skrd.Objek.nama_objek}`
+                }
+            ]
+        };
+
+        // 4. Minta Token ke Midtrans
+        const transaction = await snap.createTransaction(parameter);
+
+        // 5. Simpan metadata ke SSRD (Status: pending)
+        // Kita buat record SSRD "Draft" untuk menampung snap_token
+        await Ssrd.create({
+            id_skrd: skrd.id_skrd,
+            midtrans_order_id: orderId,
+            snap_token: transaction.token,
+            amount_paid: finalAmount,
+            payment_method: 'midtrans',
+            payment_status: 'pending',
+            points_used: pointsToUse,
+            point_value: discount
+        });
+
+        res.json({
+            success: true,
+            snap_token: transaction.token,
+            order_id: orderId
+        });
+
+    } catch (error) {
+        console.error("Midtrans Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+exports.handleMidtransNotification = async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const { order_id, transaction_status } = req.body;
+
+        if (transaction_status === 'settlement' || transaction_status === 'capture') {
+            const ssrd = await Ssrd.findOne({ where: { midtrans_order_id: order_id }, transaction: t });
+            const skrd = await Skrd.findByPk(ssrd.id_skrd, { transaction: t });
+
+            /* ================= REUSE LOGIKA DARI buatSsrd ================= */
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+            const uniqueId = Date.now().toString().slice(-6);
+            const no_ssrd_resmi = `SSRD/${dateStr}/${uniqueId}`;
+
+            // Update SSRD dari Pending ke Paid dan beri Nomor Resmi
+            await ssrd.update({
+                no_ssrd: no_ssrd_resmi,
+                payment_status: 'paid',
+                paid_at: now
+            }, { transaction: t });
+
+            // Update SKRD jadi Lunas
+            await skrd.update({ status: 'paid' }, { transaction: t });
+
+            // Potong Poin (Jika ada)
+            if (ssrd.points_used > 0) {
+                const objek = await Objek.findByPk(skrd.id_objek, { transaction: t });
+                await PoinObjek.decrement('saldo_poin', {
+                    by: ssrd.points_used,
+                    where: { id_objek: objek.id_objek },
+                    transaction: t
+                });
+            }
+
+            // Catat Log
+            await recordLog(req, {
+                action: 'PAYMENT_ONLINE_SUCCESS',
+                module: 'MANAJEMEN_SSRD',
+                description: `Pembayaran Online Berhasil: ${no_ssrd_resmi}`,
+            }, { transaction: t });
+
+            await t.commit();
+            return res.status(200).send('OK');
+        }
+
+        await t.rollback();
+        res.status(200).send('OK');
+    } catch (error) {
+        if (t) await t.rollback();
+        res.status(500).json({ message: error.message });
+    }
+};

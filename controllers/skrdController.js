@@ -345,3 +345,48 @@ exports.generateSkrdKurangBayar = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+exports.getMyUnpaidSkrd = async (req, res) => {
+    try {
+        const idSubjek = req.user.id_subjek;
+
+        const data = await Skrd.findAll({
+            where: { status: 'unpaid' },
+            include: [{
+                model: Objek,
+                required: true,
+                where: { id_subjek: idSubjek },
+                include: [{ model: Subjek }]
+            }],
+            order: [['jatuh_tempo', 'ASC']]
+        });
+
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+exports.getSkrdDetail = async (req, res) => {
+    try {
+        const { id_skrd } = req.params;
+        const data = await Skrd.findByPk(id_skrd, {
+            include: [
+                {
+                    model: Objek,
+                    include: [
+                        { model: Subjek },
+                        { model: PoinObjek }
+                    ]
+                },
+                { model: RefPelayananSkrd, as: 'pelayanan' }
+            ]
+        });
+
+        if (!data) return res.status(404).json({ message: "Tagihan tidak ditemukan" });
+
+        res.json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};

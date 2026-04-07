@@ -50,6 +50,9 @@ module.exports = {
       keterangan: {
         type: Sequelize.TEXT
       },
+      snap_token: {
+        type: Sequelize.STRING
+      },
       createdAt: {
         allowNull: false,
         type: Sequelize.DATE

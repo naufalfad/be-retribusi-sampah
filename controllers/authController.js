@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Staff, PetugasLapangan } = require('../models');
+const { Staff, PetugasLapangan, Subjek, Sequelize } = require('../models');
 const { Op } = require('sequelize');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -76,6 +76,57 @@ exports.loginStaff = async (req, res) => {
     } catch (error) {
         console.error(error);
         return res.status(500).json({ message: 'Terjadi kesalahan server', error: error.message });
+    }
+};
+
+exports.loginSubjek = async (req, res) => {
+    try {
+        const normalizeNPWRD = (value) => value.replace(/\./g, '');
+        const { npwrd_subjek, password_subjek } = req.body;
+
+        const subjek = await Subjek.findOne({
+            where: Sequelize.where(
+                Sequelize.fn('REPLACE', Sequelize.col('npwrd_subjek'), '.', ''),
+                normalizeNPWRD(npwrd_subjek)
+            )
+        });
+
+        if (!subjek) {
+            return res.status(404).json({ message: 'NPWRD tidak ditemukan' });
+        }
+
+        const isPasswordValid = await bcrypt.compare(password_subjek, subjek.password_subjek);
+
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: 'Password salah' });
+        }
+
+        const token = jwt.sign(
+            {
+                id_subjek: subjek.id_subjek,
+                npwrd_subjek: subjek.npwrd_subjek,
+                nama_subjek: subjek.nama_subjek
+            },
+            SECRET_KEY,
+            { expiresIn: '1d' }
+        );
+
+        res.json({
+            message: 'Login berhasil',
+            user: {
+                id_subjek: subjek.id_subjek,
+                npwrd_subjek: subjek.npwrd_subjek,
+                nama_subjek: subjek.nama_subjek
+            },
+            token
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: 'Terjadi kesalahan server',
+            error: error.message
+        });
     }
 };
 

@@ -10,5 +10,6 @@ router.get('/list-objek', objekController.getListObjek);
 router.put('/update-objek', auth, objekController.updateObjek);
 router.put('/nonAktif-objek', auth, objekController.nonaktifkanObjek);
 router.put('/submit-audit', auth, objekController.submitAuditObjek);
+router.get('/objek-saya', auth, objekController.getObjekBySubjekLogin);
 
 module.exports = router;

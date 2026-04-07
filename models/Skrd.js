@@ -33,7 +33,10 @@ module.exports = (sequelize, DataTypes) => {
     },
     parent_id: DataTypes.INTEGER,
     tipe_skrd: DataTypes.TEXT,
-    keterangan: DataTypes.TEXT
+    keterangan: DataTypes.TEXT,
+    snap_token: {
+      type: DataTypes.STRING
+    },
   }, {
     sequelize,
     modelName: 'Skrd',

@@ -219,3 +219,46 @@ exports.cetakNpwrdPdf = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
+exports.ubahPasswordSubjek = async (req, res) => {
+    try {
+        const { oldPassword, newPassword } = req.body;
+        const idSubjek = req.user.id_subjek;
+
+        if (!oldPassword || !newPassword) {
+            return res.status(400).json({ message: "Password lama dan baru wajib diisi" });
+        }
+
+        // 1. Cari data Wajib Retribusi
+        const user = await Subjek.findByPk(idSubjek);
+        if (!user) return res.status(404).json({ message: "Pengguna tidak ditemukan" });
+
+        // 2. Verifikasi Password Lama
+        const isMatch = await bcrypt.compare(oldPassword, user.password_subjek);
+        if (!isMatch) {
+            return res.status(401).json({ message: "Kata sandi lama salah" });
+        }
+
+        // 3. Hash Password Baru
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // 4. Update ke Database
+        await user.update({ password_subjek: hashedPassword });
+
+        // 5. Catat ke Audit Log
+        await recordLog(req, {
+            action: 'CHANGE_PASSWORD_SELF',
+            module: 'WAJIB_RETRIBUSI',
+            description: `Wajib Retribusi ${user.nama_subjek} memperbarui kata sandi secara mandiri`,
+            oldData: null,
+            newData: null
+        });
+
+        res.json({ success: true, message: "Kata sandi berhasil diperbarui" });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Gagal memproses permintaan", error: error.message });
+    }
+};

@@ -31,6 +31,21 @@ module.exports = {
       payment_status: {
         type: Sequelize.STRING
       },
+      midtrans_order_id: {
+        type: Sequelize.STRING
+      },
+      midtrans_transaction_id: {
+        type: Sequelize.STRING
+      },
+      snap_token: {
+        type: Sequelize.STRING
+      },
+      va_number: {
+        type: Sequelize.STRING
+      },
+      payment_code: {
+        type: Sequelize.STRING
+      },
       rejected_reason: {
         type: Sequelize.STRING
       },
