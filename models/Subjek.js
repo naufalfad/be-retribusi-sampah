@@ -8,6 +8,7 @@ module.exports = (sequelize, DataTypes) => {
       Subjek.hasMany(models.Objek, { foreignKey: 'id_subjek' });
       Subjek.belongsTo(models.Staff, { foreignKey: 'id_staff' });
       Subjek.hasMany(models.DokumenSubjek, { foreignKey: 'id_subjek' });
+      Subjek.hasMany(models.Pengajuan, { foreignKey: 'id_subjek' });
     }
   }
   Subjek.init({

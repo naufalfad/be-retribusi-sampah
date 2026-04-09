@@ -11,7 +11,10 @@ router.post('/pembayaran-penagih', auth, ssrdController.paymentPenagih);
 router.post('/verifikasi-rekon', ssrdController.verifikasiPembayaran);
 router.get('/list-pending', ssrdController.getListPending);
 router.get('/paid-list', ssrdController.getListSsrdPaid);
+
 router.post('/pembayaran', auth, ssrdController.initiateMidtransPayment);
 router.post('/notification', ssrdController.handleMidtransNotification);
+
+router.get('/ssrd-saya', auth, ssrdController.getListSsrdSaya);
 
 module.exports = router;

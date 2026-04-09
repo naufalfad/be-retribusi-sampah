@@ -784,3 +784,69 @@ exports.handleMidtransNotification = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+exports.getListSsrdSaya = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const search = req.query.search || '';
+        const offset = (page - 1) * limit;
+
+        const id_subjek = req.user.id_subjek;
+
+        const { count, rows } = await Ssrd.findAndCountAll({
+            where: {
+                no_ssrd: {
+                    [Op.iLike]: `%${search}%`
+                },
+                [Op.or]: [
+                    { payment_status: 'paid' },
+                    { payment_status: 'partial' }
+                ]
+            },
+            include: [
+                {
+                    model: Skrd,
+                    attributes: ['id_skrd', 'no_skrd', 'status', 'total_bayar'],
+                    required: true,
+                    include: [
+                        {
+                            model: Objek,
+                            attributes: ['id_objek', 'nama_objek', 'npor_objek'],
+                            where: {
+                                id_subjek: id_subjek
+                            },
+                            required: true
+                        }
+                    ]
+                }
+            ],
+            limit: limit,
+            offset: offset,
+            order: [['createdAt', 'DESC']],
+            distinct: true
+        });
+
+        const totalPages = Math.ceil(count / limit);
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Daftar SSRD berhasil diambil',
+            pagination: {
+                total_items: count,
+                total_pages: totalPages,
+                current_page: page,
+                items_per_page: limit
+            },
+            data: rows
+        });
+
+    } catch (error) {
+        console.error("Error getListSsrd:", error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Gagal mengambil data SSRD',
+            error: error.message
+        });
+    }
+};
