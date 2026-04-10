@@ -402,7 +402,7 @@ exports.paymentPenagih = async (req, res) => {
 exports.verifikasiPembayaran = async (req, res) => {
     const {
         id_ssrd,
-        action, // 'approve' atau 'reject'
+        action,
         nominal_real,
         alasan_tolak,
         catatan
@@ -522,7 +522,12 @@ exports.getListPending = async (req, res) => {
                     include: [
                         {
                             model: Objek,
-                            attributes: ['id_objek', 'nama_objek', 'npor_objek']
+                            attributes: ['id_objek', 'nama_objek', 'npor_objek'],
+                            include: [
+                                {
+                                    model: Subjek,
+                                    attributes: ['nama_subjek', 'npwrd_subjek']
+                                }]
                         }]
                 }
             ],
@@ -639,6 +644,8 @@ exports.getListPending = async (req, res) => {
 // };
 
 exports.initiateMidtransPayment = async (req, res) => {
+    const t = await sequelize.transaction();
+
     try {
         const { id_skrd, use_points } = req.body;
         const role = req.user.role;
@@ -716,7 +723,35 @@ exports.initiateMidtransPayment = async (req, res) => {
             payment_status: 'pending',
             points_used: pointsToUse,
             point_value: discount
-        });
+        }, { transaction: t });
+
+        if (role === 'Penagih') {
+            await recordLog(req, {
+                action: 'COLLECT_PAYMENT_FIELD',
+                module: 'PENAGIHAN_LAPANGAN',
+                description: `Penagih ${req.user.username} menerima setoran senilai Rp${finalAmount.toLocaleString()} ${pointsToUse > 0 ? `dengan potongan ${pointsToUse} poin` : ''} dari SKRD ${skrd.no_skrd}`,
+                oldData: null,
+                newData: {
+                    metode: 'midtrans',
+                    nominal: finalAmount,
+                    poin_digunakan: pointsToUse
+                }
+            }, { transaction: t });
+        } else {
+            await recordLog(req, {
+                action: 'USER_PAYMENT',
+                module: 'PEMBAYARAN_SKRD',
+                description: `${req.user.username} membayar setoran senilai Rp${finalAmount.toLocaleString()} ${pointsToUse > 0 ? `dengan potongan ${pointsToUse} poin` : ''} dari SKRD ${skrd.no_skrd}`,
+                oldData: null,
+                newData: {
+                    metode: 'midtrans',
+                    nominal: finalAmount,
+                    poin_digunakan: pointsToUse
+                }
+            }, { transaction: t });
+        }
+
+        await t.commit();
 
         res.json({
             success: true,
@@ -726,6 +761,7 @@ exports.initiateMidtransPayment = async (req, res) => {
         });
 
     } catch (error) {
+        await t.rollback();
         console.error("Midtrans Error:", error);
         res.status(500).json({ message: error.message });
     }

@@ -65,6 +65,8 @@ exports.getWilayahKerjaDetail = async (req, res) => {
         }
 
         const kelurahan = profil.kelurahan;
+        const bulan = req.query.bulan || new Date().getMonth() + 1;
+        const tahun = req.query.tahun || new Date().getFullYear();
 
         // 2. Agregasi Data Berdasarkan RT/RW
         // Ini akan menghitung jumlah WR dan jumlah Tunggakan per RT/RW
@@ -118,13 +120,21 @@ exports.getWilayahKerjaDetail = async (req, res) => {
 
         // 4. Hitung Statistik Global Kelurahan
         const totalObjek = await Objek.count({ where: { kelurahan_objek: kelurahan } });
-        const totalLunas = await Skrd.count({
+        const totalObjekLunasBulanIni = await Skrd.count({
+            distinct: true,
+            col: 'id_objek',
             include: [{
                 model: Objek,
                 where: { kelurahan_objek: kelurahan },
                 attributes: []
             }],
-            where: { status: 'paid' }
+            where: {
+                status: 'paid',
+                updatedAt: {
+                    [Op.gte]: new Date(tahun, bulan - 1, 1),
+                    [Op.lt]: new Date(tahun, bulan, 1)
+                }
+            }
         });
 
         res.json({
@@ -133,8 +143,10 @@ exports.getWilayahKerjaDetail = async (req, res) => {
                 kelurahan: kelurahan,
                 statistik: {
                     total_objek: totalObjek,
-                    total_lunas: totalLunas,
-                    persentase_capaian: totalObjek > 0 ? Math.round((totalLunas / totalObjek) * 100) : 0
+                    total_lunas: totalObjekLunasBulanIni,
+                    persentase_capaian: totalObjek > 0
+                        ? Math.round((totalObjekLunasBulanIni / totalObjek) * 100)
+                        : 0
                 },
                 daftar_rt_rw: Object.values(summaryRT).sort((a, b) => b.nominal_tunggakan - a.nominal_tunggakan)
             }

@@ -117,7 +117,8 @@ exports.loginSubjek = async (req, res) => {
                 id_subjek: subjek.id_subjek,
                 npwrd_subjek: subjek.npwrd_subjek,
                 nama_subjek: subjek.nama_subjek,
-                role: 'User'
+                role: 'User',
+                status: subjek.status_subjek
             },
             token
         });
