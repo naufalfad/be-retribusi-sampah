@@ -92,10 +92,14 @@ exports.updateTemplate = async (req, res) => {
 
         if (req.files?.logo) {
             logoPath = req.files.logo[0].path;
+        } else if (req.body.remove_logo === 'true') {
+            logoPath = null;
         }
 
         if (req.files?.ttd_pejabat) {
             ttdPath = req.files.ttd_pejabat[0].path;
+        } else if (req.body.remove_ttd === 'true') {
+            ttdPath = null;
         }
 
         await template.update({
@@ -114,11 +118,11 @@ exports.updateTemplate = async (req, res) => {
         await transaction.commit();
 
         // hapus file lama SETELAH commit
-        if (req.files?.logo && oldLogo && fs.existsSync(oldLogo)) {
+        if ((req.files?.logo || req.body.remove_logo === 'true') && oldLogo && fs.existsSync(oldLogo)) {
             fs.unlinkSync(oldLogo);
         }
 
-        if (req.files?.ttd_pejabat && oldTTD && fs.existsSync(oldTTD)) {
+        if ((req.files?.ttd_pejabat || req.body.remove_ttd === 'true') && oldTTD && fs.existsSync(oldTTD)) {
             fs.unlinkSync(oldTTD);
         }
 
