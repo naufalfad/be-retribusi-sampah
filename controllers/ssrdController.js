@@ -64,8 +64,9 @@ exports.buatSsrd = async (req, res) => {
 
         const uniqueId = Date.now().toString().slice(-6);
         const no_ssrd = `SSRD/${dateStr}/${uniqueId}`;
-        const usedPoints = parseInt(points_used) || 0;
-        const pointValue = usedPoints * 10;
+        // NORMALISASI POINT (FITUR POIN DINONAKTIFKAN)
+        const usedPoints = 0;
+        const pointValue = 0;
 
         /* ================= SIMPAN SSRD ================= */
         const newSsrd = await Ssrd.create({
@@ -267,7 +268,7 @@ exports.paymentPenagih = async (req, res) => {
             points_used = 0
         } = req.body;
 
-        if (!id_skrd || !payment_method || !amount_paid || !paid_at) {
+        if (!id_skrd || !payment_method || !paid_at) {
             await t.rollback();
             return res.status(400).json({
                 message: 'Data pembayaran tidak lengkap'
@@ -310,9 +311,9 @@ exports.paymentPenagih = async (req, res) => {
         const uniqueId = Date.now().toString().slice(-6);
         const no_ssrd = `SSRD/${dateStr}/${uniqueId}`;
 
-        // NORMALISASI POINT
-        const usedPoints = parseInt(points_used) || 0;
-        const pointValue = usedPoints * 10;
+        // NORMALISASI POINT (FITUR POIN DINONAKTIFKAN)
+        const usedPoints = 0;
+        const pointValue = 0;
 
         // HANDLE POIN (TANPA LIHAT PAYMENT METHOD)
         if (usedPoints > 0) {
@@ -668,16 +669,10 @@ exports.initiateMidtransPayment = async (req, res) => {
             return res.status(400).json({ message: "Tagihan tidak tersedia atau sudah lunas" });
         }
 
-        // 2. Logika Poin (Redeem)
+        // 2. Logika Poin (Redeem) - FITUR POIN DINONAKTIFKAN
         let discount = 0;
         let pointsToUse = 0;
         const POINT_VALUE = 10; // 1 Poin = Rp 10
-
-        if (use_points) {
-            const saldoPoin = skrd.Objek.PoinObjek?.saldo_poin || 0;
-            discount = Math.min(saldoPoin * POINT_VALUE, parseFloat(skrd.total_bayar));
-            pointsToUse = discount / POINT_VALUE;
-        }
 
         const finalAmount = Math.round(parseFloat(skrd.total_bayar) - discount);
         const orderId = `REKAS-${skrd.id_skrd}-${Date.now()}`;

@@ -137,7 +137,7 @@ exports.createPengangkutan = async (req, res) => {
         let totalPoin = 0;
         const kategoriMap = {};
 
-        // 🔥 HITUNG TOTAL
+        // 🔥 HITUNG TOTAL (FITUR POIN DINONAKTIFKAN: Selalu 0)
         for (const item of details) {
             if (!kategoriMap[item.id_kategori]) {
                 kategoriMap[item.id_kategori] = await RefKategoriSampah.findByPk(item.id_kategori);
@@ -146,7 +146,7 @@ exports.createPengangkutan = async (req, res) => {
             const kategori = kategoriMap[item.id_kategori];
             if (!kategori) continue;
 
-            const poin = Number(item.volume) * Number(kategori.poin_per_m3);
+            const poin = 0; // Dipaksa 0
             totalPoin += poin;
         }
 
@@ -164,7 +164,7 @@ exports.createPengangkutan = async (req, res) => {
 
             if (!kategori) continue;
 
-            const poin = parseFloat(item.volume) * parseFloat(kategori.poin_per_m3);
+            const poin = 0; // Dipaksa 0
 
             await PengangkutanDetail.create({
                 id_pengangkutan: pengangkutan.id_pengangkutan,
