@@ -13,6 +13,7 @@ router.get('/list-pending', ssrdController.getListPending);
 router.get('/paid-list', ssrdController.getListSsrdPaid);
 
 router.post('/pembayaran', auth, ssrdController.initiateMidtransPayment);
+router.post('/check-status/:order_id', auth, ssrdController.checkMidtransStatus);
 router.post('/notification', ssrdController.handleMidtransNotification);
 
 router.get('/ssrd-saya', auth, ssrdController.getListSsrdSaya);

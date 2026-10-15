@@ -9,6 +9,8 @@ router.post('/tambah-subjek', auth, upload.array('dokumen_subjek'), subjekContro
 router.get('/dokumen/:id_subjek', subjekController.getDokumenSubjek);
 router.get('/pdf/:id_subjek', subjekController.cetakNpwrdPdf);
 router.get('/preview-pdf/:id_subjek', subjekController.previewNpwrdHtml);
+router.get('/me', auth, subjekController.getSubjekById);
+router.get('/detail/:id_subjek', auth, subjekController.getSubjekById);
 router.put('/ubah-password', auth, subjekController.ubahPasswordSubjek);
 
 module.exports = router;

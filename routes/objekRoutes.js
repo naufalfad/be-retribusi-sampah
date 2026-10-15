@@ -5,6 +5,7 @@ const upload = require('../middleware/uploadMiddleware');
 const objekController = require('../controllers/objekController');
 
 router.post('/tambah-objek/:id_subjek', upload.array('dokumen_objek', 10), auth, objekController.createObjek);
+router.post('/tambah-objek', upload.array('dokumen_objek', 10), auth, objekController.createObjek);
 router.get('/all-kelas', objekController.getAllKelas);
 router.get('/list-objek', objekController.getListObjek);
 router.put('/update-objek', auth, objekController.updateObjek);

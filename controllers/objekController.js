@@ -6,8 +6,22 @@ const { findOrCreateByName } = require('../utils/refHelper');
 const recordLog = require('../utils/logger');
 
 exports.createObjek = async (req, res) => {
-    // 1. Validasi awal di luar transaksi agar tidak membebani DB
-    const { id_subjek } = req.params;
+    // 1. Dapatkan target id_subjek baik dari parameter URL atau sesi user login
+    let targetIdSubjek = req.params.id_subjek;
+    if (!targetIdSubjek || targetIdSubjek === 'undefined' || targetIdSubjek === 'null' || targetIdSubjek === 'me' || targetIdSubjek === 'self') {
+        targetIdSubjek = req.user?.id_subjek;
+    }
+
+    if (!targetIdSubjek || isNaN(Number(targetIdSubjek))) {
+        return res.status(400).json({ message: 'ID Subjek tidak valid atau tidak ditemukan.' });
+    }
+
+    // Validasi keberadaan Subjek di database sebelum transaksi
+    const subjek = await Subjek.findByPk(targetIdSubjek);
+    if (!subjek) {
+        return res.status(404).json({ message: `Data Subjek dengan ID ${targetIdSubjek} tidak ditemukan.` });
+    }
+
     const { koordinat_objek } = req.body;
 
     if (koordinat_objek && !koordinat_objek.includes(',')) {
@@ -31,41 +45,6 @@ exports.createObjek = async (req, res) => {
             kode_pos_objek
         } = req.body;
 
-        // const provinsi = await findOrCreateByName(
-        //     RefProvinsi,
-        //     provinsi_objek,
-        //     {},
-        //     transaction
-        // );
-
-        // const kabupaten = await findOrCreateByName(
-        //     RefKabupaten,
-        //     kabupaten_objek,
-        //     provinsi ? { id_provinsi: provinsi.id } : {},
-        //     transaction
-        // );
-
-        // const kecamatan = await findOrCreateByName(
-        //     RefKecamatan,
-        //     kecamatan_objek,
-        //     kabupaten ? { id_kabupaten: kabupaten.id } : {},
-        //     transaction
-        // );
-
-        // const kelurahan = await findOrCreateByName(
-        //     RefKelurahan,
-        //     kelurahan_objek,
-        //     kecamatan ? { id_kecamatan: kecamatan.id } : {},
-        //     transaction
-        // );
-
-        // await findOrCreateByName(
-        //     RefKodepos,
-        //     kode_pos_objek,
-        //     kelurahan ? { id_kelurahan: kelurahan.id } : {},
-        //     transaction
-        // );
-
         const kelas = await Kelas.findByPk(id_kelas, {
             attributes: ['id_kelas', 'tarif_kelas']
         });
@@ -74,7 +53,7 @@ exports.createObjek = async (req, res) => {
         const nporGenerated = await generateNPOR();
         console.time("DB_Insert_Objek");
         const newObjek = await Objek.create({
-            id_subjek,
+            id_subjek: Number(targetIdSubjek),
             id_kelas,
             npor_objek: nporGenerated,
             kategori_objek,
@@ -108,9 +87,10 @@ exports.createObjek = async (req, res) => {
         await recordLog(req, {
             action: 'CREATE_DATA_OBJEK',
             module: 'MANAJEMEN_OBJEK',
-            description: `Petugas menambahkan objek baru ${newObjek.npor_objek}`,
+            description: `Penambahan objek baru ${newObjek.npor_objek} untuk Subjek ID ${targetIdSubjek}`,
             oldData: null,
             newData: {
+                id_subjek: Number(targetIdSubjek),
                 nama_objek: newObjek.nama_objek,
                 npor_objek: newObjek.npor_objek,
                 kategori_objek: newObjek.kategori_objek
@@ -139,7 +119,7 @@ const generateNPOR = async () => {
     const year = new Date().getFullYear();
 
     const lastObjek = await Objek.findOne({
-        order: [['createdAt', 'DESC']]
+        order: [['id_objek', 'DESC']]
     });
 
     let lastNumber = 0;
@@ -147,12 +127,22 @@ const generateNPOR = async () => {
     if (lastObjek && lastObjek.npor_objek) {
         const lastNPOR = lastObjek.npor_objek;
         const split = lastNPOR.split('-');
-        lastNumber = parseInt(split[2]) || 0;
+        if (split.length >= 3) {
+            lastNumber = parseInt(split[split.length - 1]) || 0;
+        }
     }
 
-    const nextNumber = (lastNumber + 1).toString().padStart(6, '0');
+    let nextNumber = lastNumber + 1;
+    let candidate = `NPOR-${year}-${nextNumber.toString().padStart(6, '0')}`;
 
-    return `NPOR-${year}-${nextNumber}`;
+    let exists = await Objek.findOne({ where: { npor_objek: candidate } });
+    while (exists) {
+        nextNumber++;
+        candidate = `NPOR-${year}-${nextNumber.toString().padStart(6, '0')}`;
+        exists = await Objek.findOne({ where: { npor_objek: candidate } });
+    }
+
+    return candidate;
 };
 
 exports.getAllKelas = async (req, res) => {
@@ -503,7 +493,10 @@ exports.getObjekBySubjekLogin = async (req, res) => {
                         'id_skrd',
                         'no_skrd',
                         'total_bayar',
-                        'status'
+                        'status',
+                        'periode_bulan',
+                        'periode_tahun',
+                        'jatuh_tempo'
                     ]
                 },
                 {

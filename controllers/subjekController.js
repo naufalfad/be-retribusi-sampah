@@ -27,7 +27,7 @@ exports.createSubjek = async (req, res) => {
 
         const idStaffLogin = req.user.id_staff;
         const hashedPassword = await bcrypt.hash(password_subjek, 10);
-        const npwrdGenerated = await generateNPWRD();
+        const npwrdGenerated = await generateNPWRD(nik_subjek);
         const newSubjek = await Subjek.create({
             id_staff: idStaffLogin,
             kategori_subjek,
@@ -89,24 +89,52 @@ exports.createSubjek = async (req, res) => {
     }
 };
 
-const generateNPWRD = async () => {
-    const year = new Date().getFullYear();
+const generateNPWRD = async (nik_subjek) => {
+    const year = new Date().getFullYear().toString();
+    const nikDigits = (nik_subjek || '').toString().replace(/\D/g, '');
+    const nikSuffix = nikDigits.length >= 2 ? nikDigits.slice(-2) : nikDigits.padStart(2, '0');
 
+    // Ambil subjek terakhir untuk menentukan urutan berikutnya
     const lastSubjek = await Subjek.findOne({
-        order: [['createdAt', 'DESC']]
+        order: [['id_subjek', 'DESC']]
     });
 
     let lastNumber = 0;
 
     if (lastSubjek && lastSubjek.npwrd_subjek) {
         const lastNPWRD = lastSubjek.npwrd_subjek;
-        const split = lastNPWRD.split('-');
-        lastNumber = parseInt(split[2]) || 0;
+
+        // Cek format baru 9 digit: [2 digit NIK][4 digit Tahun][3 digit Nomor Urut]
+        const matchNew = lastNPWRD.match(/^\d{2}(\d{4})(\d{3})$/);
+        if (matchNew && matchNew[1] === year) {
+            lastNumber = parseInt(matchNew[2], 10) || 0;
+        } else {
+            // Cek format lama: NPWRD-YYYY-XXXXXX
+            const matchOld = lastNPWRD.match(/NPWRD-\d{4}-(\d+)/);
+            if (matchOld) {
+                lastNumber = parseInt(matchOld[1], 10) || 0;
+            } else {
+                // Fallback cek angka pada akhiran
+                const matchEnd = lastNPWRD.match(/(\d+)$/);
+                if (matchEnd) {
+                    lastNumber = parseInt(matchEnd[1], 10) || 0;
+                }
+            }
+        }
     }
 
-    const nextNumber = (lastNumber + 1).toString().padStart(6, '0');
+    let nextNumber = lastNumber + 1;
+    let candidate = `${nikSuffix}${year}${nextNumber.toString().padStart(3, '0')}`;
 
-    return `NPWRD-${year}-${nextNumber}`;
+    // Pastikan nomor kandidat belum pernah digunakan (mencegah duplikasi)
+    let exists = await Subjek.findOne({ where: { npwrd_subjek: candidate } });
+    while (exists) {
+        nextNumber++;
+        candidate = `${nikSuffix}${year}${nextNumber.toString().padStart(3, '0')}`;
+        exists = await Subjek.findOne({ where: { npwrd_subjek: candidate } });
+    }
+
+    return candidate;
 };
 
 exports.getDokumenSubjek = async (req, res) => {
@@ -260,5 +288,34 @@ exports.ubahPasswordSubjek = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: "Gagal memproses permintaan", error: error.message });
+    }
+};
+
+exports.getSubjekById = async (req, res) => {
+    try {
+        let id_subjek = req.params.id_subjek;
+        if (!id_subjek || id_subjek === 'me' || id_subjek === 'self' || id_subjek === 'undefined') {
+            id_subjek = req.user?.id_subjek;
+        }
+
+        if (!id_subjek || isNaN(Number(id_subjek))) {
+            return res.status(400).json({ success: false, message: 'ID Subjek tidak valid' });
+        }
+
+        const subjekData = await Subjek.findByPk(id_subjek, {
+            attributes: ['id_subjek', 'nama_subjek', 'npwrd_subjek', 'nik_subjek', 'alamat_subjek', 'telepon_subjek', 'status_subjek']
+        });
+
+        if (!subjekData) {
+            return res.status(404).json({ success: false, message: 'Data Subjek tidak ditemukan' });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: subjekData
+        });
+    } catch (error) {
+        console.error("Error getSubjekById:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };

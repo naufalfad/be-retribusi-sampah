@@ -649,9 +649,10 @@ exports.initiateMidtransPayment = async (req, res) => {
 
     try {
         const { id_skrd, use_points } = req.body;
-        const role = req.user.role;
+        const role = req.user?.role || 'User';
+        const userIdentifier = req.user?.username || req.user?.nama_subjek || req.user?.npwrd_subjek || 'User';
 
-        const frontendUrl = process.env.FRONTEND_URL;
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         let finishUrl = "";
 
         if (role === 'Penagih') {
@@ -736,7 +737,7 @@ exports.initiateMidtransPayment = async (req, res) => {
             await recordLog(req, {
                 action: 'USER_PAYMENT',
                 module: 'PEMBAYARAN_SKRD',
-                description: `${req.user.username} membayar setoran senilai Rp${finalAmount.toLocaleString()} ${pointsToUse > 0 ? `dengan potongan ${pointsToUse} poin` : ''} dari SKRD ${skrd.no_skrd}`,
+                description: `${userIdentifier} membayar setoran senilai Rp${finalAmount.toLocaleString()} ${pointsToUse > 0 ? `dengan potongan ${pointsToUse} poin` : ''} dari SKRD ${skrd.no_skrd}`,
                 oldData: null,
                 newData: {
                     metode: 'midtrans',
@@ -813,6 +814,66 @@ exports.handleMidtransNotification = async (req, res) => {
     } catch (error) {
         if (t) await t.rollback();
         res.status(500).json({ message: error.message });
+    }
+};
+
+exports.checkMidtransStatus = async (req, res) => {
+    const t = await sequelize.transaction();
+    try {
+        const { order_id } = req.params;
+        const statusResponse = await snap.transaction.status(order_id);
+        const { transaction_status } = statusResponse;
+
+        if (transaction_status === 'settlement' || transaction_status === 'capture') {
+            const ssrd = await Ssrd.findOne({ where: { midtrans_order_id: order_id }, transaction: t });
+            if (ssrd && ssrd.payment_status !== 'paid') {
+                const skrd = await Skrd.findByPk(ssrd.id_skrd, { transaction: t });
+                const now = new Date();
+                const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+                const uniqueId = Date.now().toString().slice(-6);
+                const no_ssrd_resmi = `SSRD/${dateStr}/${uniqueId}`;
+
+                await ssrd.update({
+                    no_ssrd: no_ssrd_resmi,
+                    payment_status: 'paid',
+                    paid_at: now
+                }, { transaction: t });
+
+                if (skrd) {
+                    await skrd.update({ status: 'paid' }, { transaction: t });
+                }
+
+                if (ssrd.points_used > 0 && skrd) {
+                    const objek = await Objek.findByPk(skrd.id_objek, { transaction: t });
+                    if (objek) {
+                        await PoinObjek.decrement('saldo_poin', {
+                            by: ssrd.points_used,
+                            where: { id_objek: objek.id_objek },
+                            transaction: t
+                        });
+                    }
+                }
+
+                await recordLog(req, {
+                    action: 'PAYMENT_ONLINE_SUCCESS',
+                    module: 'MANAJEMEN_SSRD',
+                    description: `Pembayaran Online Berhasil (Status Check): ${no_ssrd_resmi}`,
+                }, { transaction: t });
+
+                await t.commit();
+                return res.json({ success: true, status: 'paid', message: 'Pembayaran berhasil dikonfirmasi', no_ssrd: no_ssrd_resmi });
+            } else if (ssrd && ssrd.payment_status === 'paid') {
+                await t.rollback();
+                return res.json({ success: true, status: 'paid', message: 'Pembayaran sudah terkonfirmasi', no_ssrd: ssrd.no_ssrd });
+            }
+        }
+
+        await t.rollback();
+        return res.json({ success: true, status: transaction_status });
+    } catch (error) {
+        if (t) await t.rollback();
+        console.error("Error checkMidtransStatus:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 

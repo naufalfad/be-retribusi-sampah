@@ -11,17 +11,31 @@ exports.searchKelurahan = async (req, res) => {
     try {
         const { q } = req.query;
 
-        const whereClause = q
+        const trimmedQ = q ? q.trim() : '';
+        const whereClause = trimmedQ
             ? {
-                name: {
-                    [Op.iLike]: `%${q}%`
-                }
+                [Op.or]: [
+                    {
+                        name: {
+                            [Op.iLike]: `%${trimmedQ}%`
+                        }
+                    },
+                    {
+                        '$RefKecamatan.name$': {
+                            [Op.iLike]: `%${trimmedQ}%`
+                        }
+                    }
+                ]
             }
             : {};
 
         const data = await RefKelurahan.findAll({
             where: whereClause,
-            limit: 20,
+            limit: trimmedQ ? 50 : 500,
+            order: [
+                [{ model: RefKecamatan }, 'name', 'ASC'],
+                ['name', 'ASC']
+            ],
             include: [
                 {
                     model: RefKecamatan,

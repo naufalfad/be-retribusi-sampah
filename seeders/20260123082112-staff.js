@@ -9,28 +9,28 @@ module.exports = {
 
     await queryInterface.bulkInsert('dat_staff', [
       {
-        username: 'test.unit@geocitra.com',
+        username: 'unit@geocitra.com',
         password: hashedPassword,
         role: 'UPT',
         createdAt: new Date(),
         updatedAt: new Date()
       },
       {
-        username: 'test.dinas@geocitra.com',
+        username: 'dinas@geocitra.com',
         password: hashedPassword,
         role: 'DLH',
         createdAt: new Date(),
         updatedAt: new Date()
       },
       {
-        username: 'test.bendahara@geocitra.com',
+        username: 'bendahara@geocitra.com',
         password: hashedPassword,
         role: 'Bendahara',
         createdAt: new Date(),
         updatedAt: new Date()
       },
       {
-        username: 'test.admin@geocitra.com',
+        username: 'admin@geocitra.com',
         password: hashedPassword,
         role: 'Admin',
         createdAt: new Date(),

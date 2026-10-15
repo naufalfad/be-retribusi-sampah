@@ -81,15 +81,22 @@ exports.loginStaff = async (req, res) => {
 
 exports.loginSubjek = async (req, res) => {
     try {
-        const normalizeNPWRD = (value) => value.replace(/\./g, '');
         const { npwrd_subjek, password_subjek } = req.body;
+        const rawInput = (npwrd_subjek || '').toString().trim();
 
-        const subjek = await Subjek.findOne({
-            where: Sequelize.where(
-                Sequelize.fn('REPLACE', Sequelize.col('npwrd_subjek'), '.', ''),
-                normalizeNPWRD(npwrd_subjek)
-            )
+        let subjek = await Subjek.findOne({
+            where: { npwrd_subjek: rawInput }
         });
+
+        if (!subjek) {
+            const normalizeNPWRD = (value) => (value || '').toString().replace(/\./g, '');
+            subjek = await Subjek.findOne({
+                where: Sequelize.where(
+                    Sequelize.fn('REPLACE', Sequelize.col('npwrd_subjek'), '.', ''),
+                    normalizeNPWRD(rawInput)
+                )
+            });
+        }
 
         if (!subjek) {
             return res.status(404).json({ message: 'NPWRD tidak ditemukan' });
@@ -105,7 +112,9 @@ exports.loginSubjek = async (req, res) => {
             {
                 id_subjek: subjek.id_subjek,
                 npwrd_subjek: subjek.npwrd_subjek,
-                nama_subjek: subjek.nama_subjek
+                nama_subjek: subjek.nama_subjek,
+                username: subjek.nama_subjek,
+                role: 'User'
             },
             SECRET_KEY,
             { expiresIn: '1d' }
