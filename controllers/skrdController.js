@@ -390,3 +390,177 @@ exports.getSkrdDetail = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+/**
+ * Helper Masking Nama sesuai UU PDP: Menyamarkan bagian tengah nama agar tidak dieksploitasi
+ * Contoh: "Muhammad Naufal" -> "M******d N****l"
+ */
+const maskName = (name) => {
+    if (!name) return '***';
+    return name.trim().split(/\s+/).map(word => {
+        if (word.length <= 2) return word[0] + '*';
+        if (word.length === 3) return word[0] + '*' + word[2];
+        return word[0] + '*'.repeat(Math.max(word.length - 2, 2)) + word[word.length - 1];
+    }).join(' ');
+};
+
+/**
+ * Helper Masking NPWRD: Menampilkan 3 digit awal dan 3 digit akhir saja
+ * Contoh: "1020262203" -> "102****203"
+ */
+const maskNpwrd = (npwrd) => {
+    if (!npwrd) return '***';
+    const str = String(npwrd).trim();
+    if (str.length <= 5) return str[0] + '***' + str[str.length - 1];
+    return str.slice(0, 3) + '****' + str.slice(-3);
+};
+
+/**
+ * Endpoint Publik untuk Cek Cepat Tagihan SKRD dari Landing Page
+ * Keamanan: Data Masking ketat (No NIK, No Telp, No Email, No Jalan/RT/RW)
+ */
+exports.publicCheckSkrd = async (req, res) => {
+    try {
+        const rawQuery = req.query.query || '';
+        const cleaned = rawQuery.trim();
+
+        if (!cleaned) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Silakan masukkan Nomor Pokok Objek Retribusi (NPOR) atau NPWRD Anda.'
+            });
+        }
+
+        // 1. Cari Objek berdasarkan NPOR
+        let objekList = await Objek.findAll({
+            where: {
+                npor_objek: { [Op.iLike]: `%${cleaned}%` }
+            },
+            attributes: ['id_objek', 'npor_objek', 'nama_objek', 'kategori_objek', 'kelurahan_objek', 'kecamatan_objek', 'id_subjek'],
+            include: [{
+                model: Subjek,
+                attributes: ['id_subjek', 'nama_subjek', 'npwrd_subjek']
+            }]
+        });
+
+        // 2. Jika tidak ditemukan lewat NPOR, cari Subjek berdasarkan NPWRD
+        if (objekList.length === 0) {
+            const subjekFound = await Subjek.findOne({
+                where: {
+                    npwrd_subjek: { [Op.iLike]: `%${cleaned}%` }
+                },
+                attributes: ['id_subjek', 'nama_subjek', 'npwrd_subjek']
+            });
+
+            if (subjekFound) {
+                objekList = await Objek.findAll({
+                    where: { id_subjek: subjekFound.id_subjek },
+                    attributes: ['id_objek', 'npor_objek', 'nama_objek', 'kategori_objek', 'kelurahan_objek', 'kecamatan_objek', 'id_subjek'],
+                    include: [{
+                        model: Subjek,
+                        attributes: ['id_subjek', 'nama_subjek', 'npwrd_subjek']
+                    }]
+                });
+            }
+        }
+
+        // 3. Jika masih belum ditemukan, cek apakah query adalah no_skrd
+        if (objekList.length === 0) {
+            const skrdSingle = await Skrd.findOne({
+                where: {
+                    no_skrd: { [Op.iLike]: `%${cleaned}%` }
+                },
+                include: [{
+                    model: Objek,
+                    attributes: ['id_objek', 'npor_objek', 'nama_objek', 'kategori_objek', 'kelurahan_objek', 'kecamatan_objek', 'id_subjek'],
+                    include: [{
+                        model: Subjek,
+                        attributes: ['id_subjek', 'nama_subjek', 'npwrd_subjek']
+                    }]
+                }]
+            });
+            if (skrdSingle && skrdSingle.Objek) {
+                objekList = [skrdSingle.Objek];
+            }
+        }
+
+        if (objekList.length === 0) {
+            return res.status(404).json({
+                status: 'error',
+                message: 'Data tagihan tidak ditemukan. Pastikan nomor NPOR atau NPWRD sudah benar dan terdaftar resmi di DLH Kabupaten Bogor.'
+            });
+        }
+
+        const idObjekList = objekList.map(o => o.id_objek);
+
+        // Ambil data SKRD untuk objek-objek tersebut
+        const skrdRecords = await Skrd.findAll({
+            where: {
+                id_objek: { [Op.in]: idObjekList }
+            },
+            include: [{
+                model: Objek,
+                attributes: ['id_objek', 'npor_objek', 'nama_objek', 'kategori_objek', 'kelurahan_objek', 'kecamatan_objek'],
+                include: [{
+                    model: Subjek,
+                    attributes: ['id_subjek', 'nama_subjek', 'npwrd_subjek']
+                }]
+            }],
+            order: [
+                [sequelize.literal("CASE WHEN \"Skrd\".\"status\" = 'unpaid' THEN 0 ELSE 1 END"), 'ASC'],
+                ['periode_tahun', 'DESC'],
+                ['periode_bulan', 'DESC'],
+                ['createdAt', 'DESC']
+            ],
+            limit: 6
+        });
+
+        if (skrdRecords.length === 0) {
+            return res.status(200).json({
+                status: 'success',
+                message: 'Objek retribusi terdaftar, namun belum ada lembar tagihan SKRD yang diterbitkan.',
+                data: []
+            });
+        }
+
+        // Filter & Masking: Hanya sajikan informasi penting publik, sembunyikan seluruh data pribadi
+        const maskedData = skrdRecords.map(item => {
+            const subjek = item.Objek?.Subjek;
+            const objek = item.Objek;
+            const isUnpaid = item.status?.toLowerCase() === 'unpaid';
+
+            return {
+                id_skrd: item.id_skrd,
+                no_skrd: item.no_skrd,
+                npor_objek: objek?.npor_objek || '-',
+                nama_subjek_masked: maskName(subjek?.nama_subjek),
+                npwrd_masked: maskNpwrd(subjek?.npwrd_subjek),
+                kategori_objek: objek?.kategori_objek || 'Objek Retribusi',
+                wilayah: `${objek?.kelurahan_objek || '-'}, Kec. ${objek?.kecamatan_objek || '-'}`,
+                periode_bulan: item.periode_bulan,
+                periode_tahun: item.periode_tahun,
+                jatuh_tempo: item.jatuh_tempo,
+                total_bayar: parseFloat(item.total_bayar) || 0,
+                denda: parseFloat(item.denda) || 0,
+                status: item.status,
+                is_unpaid: isUnpaid
+            };
+        });
+
+        return res.status(200).json({
+            status: 'success',
+            message: 'Tagihan SKRD berhasil ditemukan',
+            count: maskedData.length,
+            has_unpaid: maskedData.some(b => b.is_unpaid),
+            data: maskedData
+        });
+
+    } catch (error) {
+        console.error("Error publicCheckSkrd:", error);
+        return res.status(500).json({
+            status: 'error',
+            message: 'Terjadi kendala teknis saat memverifikasi tagihan. Silakan coba beberapa saat lagi.',
+            error: error.message
+        });
+    }
+};

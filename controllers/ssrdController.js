@@ -4,14 +4,7 @@ const { Skrd, Ssrd, Objek, Subjek, PoinObjek, PenukaranPoin, sequelize } = requi
 const { getSsrdHtml } = require('../services/ssrdService');
 const { getBrowser } = require('../utils/puppeteerBrowser');
 const recordLog = require('../utils/logger');
-const midtransClient = require('midtrans-client');
-
-// Setup Midtrans Snap
-let snap = new midtransClient.Snap({
-    isProduction: false, // Set ke true jika sudah live
-    serverKey: process.env.MIDTRANS_SERVER_KEY,
-    clientKey: process.env.MIDTRANS_CLIENT_KEY
-});
+const { snap, extractMidtransPaymentDetails } = require('../utils/midtrans');
 
 
 exports.buatSsrd = async (req, res) => {
@@ -709,17 +702,33 @@ exports.initiateMidtransPayment = async (req, res) => {
         const transaction = await snap.createTransaction(parameter);
 
         // 5. Simpan metadata ke SSRD (Status: pending)
-        // Kita buat record SSRD "Draft" untuk menampung snap_token
-        await Ssrd.create({
-            id_skrd: skrd.id_skrd,
-            midtrans_order_id: orderId,
-            snap_token: transaction.token,
-            amount_paid: finalAmount,
-            payment_method: 'midtrans',
-            payment_status: 'pending',
-            points_used: pointsToUse,
-            point_value: discount
-        }, { transaction: t });
+        // Cek apakah sudah ada draft pending sebelumnya untuk SKRD ini agar tidak duplikat
+        const existingDraft = await Ssrd.findOne({
+            where: { id_skrd: skrd.id_skrd, payment_status: 'pending' },
+            transaction: t
+        });
+
+        if (existingDraft) {
+            await existingDraft.update({
+                midtrans_order_id: orderId,
+                snap_token: transaction.token,
+                amount_paid: finalAmount,
+                payment_method: 'midtrans',
+                points_used: pointsToUse,
+                point_value: discount
+            }, { transaction: t });
+        } else {
+            await Ssrd.create({
+                id_skrd: skrd.id_skrd,
+                midtrans_order_id: orderId,
+                snap_token: transaction.token,
+                amount_paid: finalAmount,
+                payment_method: 'midtrans',
+                payment_status: 'pending',
+                points_used: pointsToUse,
+                point_value: discount
+            }, { transaction: t });
+        }
 
         if (role === 'Penagih') {
             await recordLog(req, {
@@ -770,18 +779,27 @@ exports.handleMidtransNotification = async (req, res) => {
 
         if (transaction_status === 'settlement' || transaction_status === 'capture') {
             const ssrd = await Ssrd.findOne({ where: { midtrans_order_id: order_id }, transaction: t });
+            if (!ssrd) {
+                await t.rollback();
+                return res.status(404).json({ message: 'SSRD tidak ditemukan' });
+            }
             const skrd = await Skrd.findByPk(ssrd.id_skrd, { transaction: t });
 
+            const paymentDetails = extractMidtransPaymentDetails(req.body);
+
             /* ================= REUSE LOGIKA DARI buatSsrd ================= */
-            const now = new Date();
+            const now = paymentDetails.settlement_time ? new Date(paymentDetails.settlement_time) : new Date();
             const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
             const uniqueId = Date.now().toString().slice(-6);
-            const no_ssrd_resmi = `SSRD/${dateStr}/${uniqueId}`;
+            const no_ssrd_resmi = (ssrd.no_ssrd && !ssrd.no_ssrd.startsWith('DRAFT')) ? ssrd.no_ssrd : `SSRD/${dateStr}/${uniqueId}`;
 
-            // Update SSRD dari Pending ke Paid dan beri Nomor Resmi
+            // Update SSRD dari Pending ke Paid dan simpan channel spesifik serta ID transaksi Midtrans
             await ssrd.update({
                 no_ssrd: no_ssrd_resmi,
                 payment_status: 'paid',
+                payment_method: paymentDetails.channel,
+                midtrans_transaction_id: paymentDetails.transaction_id || ssrd.midtrans_transaction_id,
+                va_number: paymentDetails.va_number || ssrd.va_number,
                 paid_at: now
             }, { transaction: t });
 
@@ -826,16 +844,21 @@ exports.checkMidtransStatus = async (req, res) => {
 
         if (transaction_status === 'settlement' || transaction_status === 'capture') {
             const ssrd = await Ssrd.findOne({ where: { midtrans_order_id: order_id }, transaction: t });
+            const paymentDetails = extractMidtransPaymentDetails(statusResponse);
+
             if (ssrd && ssrd.payment_status !== 'paid') {
                 const skrd = await Skrd.findByPk(ssrd.id_skrd, { transaction: t });
-                const now = new Date();
+                const now = paymentDetails.settlement_time ? new Date(paymentDetails.settlement_time) : new Date();
                 const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
                 const uniqueId = Date.now().toString().slice(-6);
-                const no_ssrd_resmi = `SSRD/${dateStr}/${uniqueId}`;
+                const no_ssrd_resmi = (ssrd.no_ssrd && !ssrd.no_ssrd.startsWith('DRAFT')) ? ssrd.no_ssrd : `SSRD/${dateStr}/${uniqueId}`;
 
                 await ssrd.update({
                     no_ssrd: no_ssrd_resmi,
                     payment_status: 'paid',
+                    payment_method: paymentDetails.channel,
+                    midtrans_transaction_id: paymentDetails.transaction_id || ssrd.midtrans_transaction_id,
+                    va_number: paymentDetails.va_number || ssrd.va_number,
                     paid_at: now
                 }, { transaction: t });
 
@@ -857,12 +880,22 @@ exports.checkMidtransStatus = async (req, res) => {
                 await recordLog(req, {
                     action: 'PAYMENT_ONLINE_SUCCESS',
                     module: 'MANAJEMEN_SSRD',
-                    description: `Pembayaran Online Berhasil (Status Check): ${no_ssrd_resmi}`,
+                    description: `Pembayaran Online Berhasil (${paymentDetails.channel}): ${no_ssrd_resmi}`,
                 }, { transaction: t });
 
                 await t.commit();
                 return res.json({ success: true, status: 'paid', message: 'Pembayaran berhasil dikonfirmasi', no_ssrd: no_ssrd_resmi });
             } else if (ssrd && ssrd.payment_status === 'paid') {
+                // Jika sudah paid tapi payment_method masih generic 'midtrans', perbarui ke channel spesifik
+                if (ssrd.payment_method === 'midtrans' || !ssrd.midtrans_transaction_id) {
+                    await ssrd.update({
+                        payment_method: paymentDetails.channel,
+                        midtrans_transaction_id: paymentDetails.transaction_id || ssrd.midtrans_transaction_id,
+                        va_number: paymentDetails.va_number || ssrd.va_number
+                    }, { transaction: t });
+                    await t.commit();
+                    return res.json({ success: true, status: 'paid', message: 'Pembayaran sudah terkonfirmasi', no_ssrd: ssrd.no_ssrd });
+                }
                 await t.rollback();
                 return res.json({ success: true, status: 'paid', message: 'Pembayaran sudah terkonfirmasi', no_ssrd: ssrd.no_ssrd });
             }

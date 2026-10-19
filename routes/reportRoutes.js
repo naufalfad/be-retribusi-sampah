@@ -4,6 +4,7 @@ const auth = require('../middleware/authMiddleware');
 const reportController = require('../controllers/reportController');
 
 router.get('/summary-report', reportController.getSummaryReport);
+router.get('/monthly-trend', reportController.getMonthlyTrend);
 router.get('/regiobal-report', reportController.getRegionalReport);
 router.get('/detail-report', reportController.getDetailedReport);
 router.get('/admin-stats', reportController.getAdminStats);
@@ -12,4 +13,4 @@ router.get('/bendahara-stats', auth, reportController.getBendaharaStats);
 router.get('/penagih-stats', auth, reportController.getPenagihStats);
 router.get('/cetak-penerimaan', reportController.exportPenerimaanPdf);
 
-module.exports = router
+module.exports = router;

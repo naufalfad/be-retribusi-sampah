@@ -561,3 +561,89 @@ exports.exportPenerimaanPdf = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+/**
+ * Mengambil data tren realisasi penerimaan nyata per bulan berdasarkan data SKRD & SSRD
+ * Hanya mengembalikan bulan-bulan yang memiliki catatan transaksi aktual (No Dummy Data)
+ */
+exports.getMonthlyTrend = async (req, res) => {
+    try {
+        const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+        const skrdList = await Skrd.findAll({
+            where: { periode_tahun: year },
+            include: [{
+                model: Ssrd,
+                where: {
+                    payment_status: { [Op.in]: ['paid', 'partial'] }
+                },
+                required: false
+            }]
+        });
+
+        const namaBulanMap = [
+            "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+            "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+        ];
+
+        const monthlyMap = {};
+        const processedSkrdIds = new Set();
+        const processedSsrdIds = new Set();
+
+        for (const item of skrdList) {
+            const m = parseInt(item.periode_bulan, 10);
+            if (!m) continue;
+            if (!monthlyMap[m]) {
+                monthlyMap[m] = {
+                    periode_bulan: m,
+                    nama_bulan: namaBulanMap[m] || `Bulan ${m}`,
+                    nama_bulan_singkat: (namaBulanMap[m] || `B${m}`).slice(0, 3),
+                    jumlah_skrd: 0,
+                    skrd_lunas: 0,
+                    total_ketetapan: 0,
+                    total_realisasi: 0
+                };
+            }
+
+            // Pastikan setiap SKRD hanya dihitung satu kali untuk ketetapan dan status
+            if (!processedSkrdIds.has(item.id_skrd)) {
+                processedSkrdIds.add(item.id_skrd);
+                monthlyMap[m].jumlah_skrd += 1;
+                monthlyMap[m].total_ketetapan += parseFloat(item.total_bayar) || 0;
+                if (item.status === 'paid') {
+                    monthlyMap[m].skrd_lunas += 1;
+                }
+            }
+
+            // Akumulasi realisasi hanya dari SSRD yang sah dan belum terhitung
+            if (item.Ssrd && (item.Ssrd.payment_status === 'paid' || item.Ssrd.payment_status === 'partial')) {
+                if (!processedSsrdIds.has(item.Ssrd.id_ssrd)) {
+                    processedSsrdIds.add(item.Ssrd.id_ssrd);
+                    monthlyMap[m].total_realisasi += parseFloat(item.Ssrd.amount_paid) || 0;
+                }
+            }
+        }
+
+        const data = Object.values(monthlyMap)
+            .map(item => {
+                const sisaPiutang = Math.max(0, item.total_ketetapan - item.total_realisasi);
+                return {
+                    ...item,
+                    total_piutang: sisaPiutang,
+                    persentase_kepatuhan: item.jumlah_skrd > 0
+                        ? ((item.skrd_lunas / item.jumlah_skrd) * 100).toFixed(1) + '%'
+                        : '0%'
+                };
+            })
+            .sort((a, b) => a.periode_bulan - b.periode_bulan);
+
+        return res.json({
+            success: true,
+            year: year,
+            total_active_months: data.length,
+            data: data
+        });
+    } catch (error) {
+        console.error("Error getMonthlyTrend:", error);
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};

@@ -16,6 +16,8 @@ const maintenanceRoutes = require('./routes/maintenanceRoutes');
 const logsRoutes = require('./routes/logsRoutes');
 const poinRoutes = require('./routes/poinRoutes');
 const layananRoutes = require('./routes/layananRoutes');
+const tempatSampahRoutes = require('./routes/tempatSampahRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 const { closeBrowser } = require('./utils/puppeteerBrowser');
 
 setInterval(async () => {
@@ -27,7 +29,12 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(
     cors({
-        origin: ["http://localhost:5173", "https://rekas.geocitra.com"],
+        origin: (origin, callback) => {
+            if (!origin || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:') || origin === 'https://rekas.geocitra.com') {
+                return callback(null, true);
+            }
+            return callback(new Error('Not allowed by CORS'));
+        },
         methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
         credentials: true,
     })
@@ -45,6 +52,8 @@ app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/poin', poinRoutes);
 app.use('/api/layanan', layananRoutes);
+app.use('/api/tempat-sampah', tempatSampahRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 const PORT = 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

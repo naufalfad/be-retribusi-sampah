@@ -91,10 +91,15 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
         size: A4;
         margin: 20mm;
     }
+    * {
+        box-sizing: border-box;
+    }
     body {
         font-family: Arial, Helvetica, sans-serif;
         font-size: 11px;
         color: #000;
+        margin: 0;
+        padding: 0;
     }
     table {
         width: 100%;
@@ -116,9 +121,50 @@ module.exports = function renderSkrdHtml({ skrd, template }) {
         margin-bottom: 15px;
         padding-bottom: 10px;
     }
+
+    @media screen {
+        html {
+            background-color: #525659;
+        }
+        body {
+            background-color: #525659;
+            margin: 0;
+            padding: 24px 16px;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        .sheet {
+            background: #ffffff;
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+            margin: 0 auto;
+            position: relative;
+            box-sizing: border-box;
+        }
+    }
+
+    @media print {
+        html, body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .sheet {
+            width: 100% !important;
+            min-height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: #ffffff !important;
+        }
+    }
 </style>
 </head>
 <body>
+<div class="sheet">
 
 <!-- KOP SURAT -->
 <table class="no-border kop">
@@ -227,6 +273,7 @@ ${isKurangBayar ? `
 </tr>
 </table>
 
+</div>
 </body>
 </html>
 `;

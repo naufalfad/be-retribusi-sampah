@@ -1,4 +1,25 @@
-const { formatTanggalID, formatTahun } = require('../utils/dateFormatter');
+const { formatTanggalID, formatTahun, formatTanggalWaktuID } = require('../utils/dateFormatter');
+
+function formatMetodeBayar(method) {
+    if (!method) return 'Tunai / Loket';
+    const raw = method.toString().trim();
+    const lower = raw.toLowerCase();
+
+    if (lower === 'tunai' || lower === 'cash' || lower === 'manual') {
+        return 'Tunai (Loket / Petugas Penagih)';
+    }
+    if (lower === 'midtrans' || lower === 'online') {
+        return 'Pembayaran Online (Midtrans)';
+    }
+    if (lower === 'qris') {
+        return 'QRIS (Pembayaran Digital)';
+    }
+    if (lower === 'bank_transfer' || lower === 'va') {
+        return 'Transfer Bank (Virtual Account)';
+    }
+    // Jika sudah berisi nama channel spesifik (seperti 'BCA Virtual Account', 'Mandiri Bill Payment', 'ShopeePay', dll.)
+    return raw;
+}
 
 module.exports = function renderSsrdHtml({ ssrd, skrd, template }) {
     const objek = skrd?.Objek || {};
@@ -6,6 +27,13 @@ module.exports = function renderSsrdHtml({ ssrd, skrd, template }) {
 
     const tahun = skrd?.periode_tahun ? formatTahun(skrd.periode_tahun) : '-';
     const tanggalBayar = ssrd?.paid_at ? formatTanggalID(ssrd.paid_at) : '-';
+    const waktuBayar = ssrd?.paid_at ? formatTanggalWaktuID(ssrd.paid_at) : '-';
+    const metodeBayar = formatMetodeBayar(ssrd?.payment_method);
+    const idTransaksi = ssrd?.midtrans_transaction_id
+        || ssrd?.midtrans_order_id
+        || ssrd?.payment_code
+        || ssrd?.va_number
+        || (ssrd?.id_ssrd ? `TRX-M${String(ssrd.id_ssrd).padStart(6, '0')}` : '-');
 
     const poinDigunakan = ssrd?.points_used || 0;
     const nilaiPoin = ssrd?.point_value || 0;
@@ -30,11 +58,16 @@ module.exports = function renderSsrdHtml({ ssrd, skrd, template }) {
             size: A4;
             margin: 10mm;
         }
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: Arial, Helvetica, sans-serif;
             font-size: 11px;
             color: #000;
             line-height: 1.3;
+            margin: 0;
+            padding: 0;
         }
         .container {
             width: 100%;
@@ -81,10 +114,50 @@ module.exports = function renderSsrdHtml({ ssrd, skrd, template }) {
             pointer-events: none;
             z-index: -1;
         }
+
+        @media screen {
+            html {
+                background-color: #525659;
+            }
+            body {
+                background-color: #525659;
+                margin: 0;
+                padding: 24px 16px;
+                min-height: 100vh;
+                box-sizing: border-box;
+            }
+            .sheet {
+                background: #ffffff;
+                width: 210mm;
+                min-height: 297mm;
+                padding: 10mm;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+                margin: 0 auto;
+                position: relative;
+                box-sizing: border-box;
+            }
+        }
+
+        @media print {
+            html, body {
+                background: #ffffff !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .sheet {
+                width: 100% !important;
+                min-height: auto !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                background: #ffffff !important;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="sheet container">
         <div class="watermark">LUNAS</div>
 
         <!-- HEADER BOX -->
@@ -183,21 +256,31 @@ module.exports = function renderSsrdHtml({ ssrd, skrd, template }) {
             </tr>
         </table>
 
-        <!-- INFO TANGGAL & SKRD -->
+        <!-- INFO PENYETORAN & TRANSAKSI (4 BARIS) -->
         <table style="border-top: none;">
             <tr>
-                <td width="30%" style="border-right: none;">Tanggal Diterima Uang</td>
+                <td width="28%" style="border-right: none;">Waktu Pembayaran</td>
                 <td width="2%" style="border-left: none; border-right: none;">:</td>
-                <td style="border-left: none;">${tanggalBayar}</td>
+                <td style="border-left: none;"><b>${waktuBayar}</b></td>
             </tr>
             <tr>
-                <td style="border-right: none;">Nomor SKRD</td>
+                <td style="border-right: none;">Metode Pembayaran</td>
+                <td style="border-left: none; border-right: none;">:</td>
+                <td style="border-left: none;"><b>${metodeBayar}</b></td>
+            </tr>
+            <tr>
+                <td style="border-right: none;">ID Transaksi</td>
+                <td style="border-left: none; border-right: none;">:</td>
+                <td style="border-left: none; font-family: monospace;"><b>${idTransaksi}</b></td>
+            </tr>
+            <tr>
+                <td style="border-right: none;">Nomor SKRD Acuan</td>
                 <td style="border-left: none; border-right: none;">:</td>
                 <td style="border-left: none;">
                     <table class="no-border" style="width: 100%">
                         <tr>
-                            <td style="padding:0">${skrd.no_skrd}</td>
-                            <td style="padding:0" class="right">Tanggal Setor : ${tanggalBayar}</td>
+                            <td style="padding:0"><b>${skrd?.no_skrd || '-'}</b></td>
+                            <td style="padding:0" class="right"><i style="font-size:10px; color:#555;">Status: LUNAS</i></td>
                         </tr>
                     </table>
                 </td>

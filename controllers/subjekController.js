@@ -102,35 +102,36 @@ const generateNPWRD = async (nik_subjek) => {
     let lastNumber = 0;
 
     if (lastSubjek && lastSubjek.npwrd_subjek) {
-        const lastNPWRD = lastSubjek.npwrd_subjek;
+        const lastNPWRD = lastSubjek.npwrd_subjek.toString().trim();
 
-        // Cek format baru 9 digit: [2 digit NIK][4 digit Tahun][3 digit Nomor Urut]
-        const matchNew = lastNPWRD.match(/^\d{2}(\d{4})(\d{3})$/);
-        if (matchNew && matchNew[1] === year) {
-            lastNumber = parseInt(matchNew[2], 10) || 0;
+        // 1. Cek format baru seragam: [2 digit NIK][4 digit Tahun][3 atau 4 digit Nomor Urut]
+        const matchDigits = lastNPWRD.match(/^\d{2}\d{4}(\d{3,4})$/);
+        if (matchDigits) {
+            lastNumber = parseInt(matchDigits[1], 10) || 0;
         } else {
-            // Cek format lama: NPWRD-YYYY-XXXXXX
-            const matchOld = lastNPWRD.match(/NPWRD-\d{4}-(\d+)/);
-            if (matchOld) {
-                lastNumber = parseInt(matchOld[1], 10) || 0;
+            // 2. Cek format lama berpemisah (NPWRD-YYYY-XXXXXX atau 1.2203.2201)
+            const matchSeparated = lastNPWRD.match(/[-.](\d{3,4})$/);
+            if (matchSeparated) {
+                lastNumber = parseInt(matchSeparated[1], 10) || 0;
             } else {
-                // Fallback cek angka pada akhiran
-                const matchEnd = lastNPWRD.match(/(\d+)$/);
-                if (matchEnd) {
-                    lastNumber = parseInt(matchEnd[1], 10) || 0;
+                // 3. Fallback: ambil maksimal 4 digit terakhir saja agar tidak menelan prefix tahun/NIK
+                const last4Digits = lastNPWRD.slice(-4).replace(/\D/g, '');
+                if (last4Digits) {
+                    lastNumber = parseInt(last4Digits, 10) || 0;
                 }
             }
         }
     }
 
     let nextNumber = lastNumber + 1;
-    let candidate = `${nikSuffix}${year}${nextNumber.toString().padStart(3, '0')}`;
+    // Format seragam 10 digit: [2 digit NIK][4 digit Tahun][4 digit Nomor Urut]
+    let candidate = `${nikSuffix}${year}${nextNumber.toString().padStart(4, '0')}`;
 
     // Pastikan nomor kandidat belum pernah digunakan (mencegah duplikasi)
     let exists = await Subjek.findOne({ where: { npwrd_subjek: candidate } });
     while (exists) {
         nextNumber++;
-        candidate = `${nikSuffix}${year}${nextNumber.toString().padStart(3, '0')}`;
+        candidate = `${nikSuffix}${year}${nextNumber.toString().padStart(4, '0')}`;
         exists = await Subjek.findOne({ where: { npwrd_subjek: candidate } });
     }
 
