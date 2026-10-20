@@ -3,6 +3,36 @@ const { Op } = require('sequelize');
 const { TempatSampah, sequelize } = require('../models');
 const recordLog = require('../utils/logger');
 
+// Helper normalisasi list foto (maksimal 4 foto)
+const parseFotoList = (foto, foto_url) => {
+    let list = [];
+    if (Array.isArray(foto)) {
+        list = foto;
+    } else if (typeof foto === 'string' && foto.trim() !== '') {
+        try {
+            const parsed = JSON.parse(foto);
+            if (Array.isArray(parsed)) list = parsed;
+            else list = [foto.trim()];
+        } catch {
+            list = [foto.trim()];
+        }
+    }
+    if (list.length === 0 && foto_url) {
+        if (typeof foto_url === 'string' && foto_url.trim() !== '') {
+            try {
+                const parsed = JSON.parse(foto_url);
+                if (Array.isArray(parsed)) list = parsed;
+                else list = [foto_url.trim()];
+            } catch {
+                list = [foto_url.trim()];
+            }
+        } else if (Array.isArray(foto_url)) {
+            list = foto_url;
+        }
+    }
+    return list.filter(Boolean).slice(0, 4);
+};
+
 // 1. GET ALL TEMPAT SAMPAH (DENGAN FILTER & SEARCH)
 exports.getAllTempatSampah = async (req, res) => {
     try {
@@ -48,12 +78,15 @@ exports.getAllTempatSampah = async (req, res) => {
             // Pastikan lat & lng tersedia dalam format numerik
             const lat = parseFloat(raw.latitude);
             const lng = parseFloat(raw.longitude);
+            const fotoList = parseFotoList(raw.foto, raw.foto_url);
 
             return {
                 ...raw,
                 lat,
                 lng,
-                persentase_keterisian: parseFloat(persentase)
+                persentase_keterisian: parseFloat(persentase),
+                foto: fotoList,
+                foto_url: fotoList[0] || null
             };
         });
 
@@ -132,6 +165,7 @@ exports.getTempatSampahById = async (req, res) => {
         const total = parseFloat(raw.kapasitas_total) || 0;
         const current = parseFloat(raw.volume_saat_ini) || 0;
         const persentase = total > 0 ? Math.min(100, (current / total) * 100).toFixed(1) : '0.0';
+        const fotoList = parseFotoList(raw.foto, raw.foto_url);
 
         return res.status(200).json({
             success: true,
@@ -139,7 +173,9 @@ exports.getTempatSampahById = async (req, res) => {
                 ...raw,
                 lat: parseFloat(raw.latitude),
                 lng: parseFloat(raw.longitude),
-                persentase_keterisian: parseFloat(persentase)
+                persentase_keterisian: parseFloat(persentase),
+                foto: fotoList,
+                foto_url: fotoList[0] || null
             }
         });
     } catch (error) {
@@ -217,6 +253,29 @@ exports.createTempatSampah = async (req, res) => {
 
         const validStatus = normalizeStatusOperasional(status_operasional);
 
+        // Kelola file foto yang diunggah atau list foto (Maksimal 4)
+        let photoPaths = [];
+        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+            photoPaths = req.files.map(f => `/uploads/tempat-sampah/${f.filename}`);
+        }
+        if (req.body.foto) {
+            let bodyFoto = req.body.foto;
+            if (typeof bodyFoto === 'string') {
+                try {
+                    bodyFoto = JSON.parse(bodyFoto);
+                } catch (e) {
+                    bodyFoto = [bodyFoto];
+                }
+            }
+            if (Array.isArray(bodyFoto)) {
+                photoPaths = [...photoPaths, ...bodyFoto.filter(Boolean)];
+            }
+        }
+        if (photoPaths.length === 0 && foto_url) {
+            photoPaths = [foto_url];
+        }
+        photoPaths = photoPaths.slice(0, 4);
+
         const newFacility = await TempatSampah.create({
             nama_tempat: nama_tempat.trim(),
             kategori,
@@ -235,7 +294,8 @@ exports.createTempatSampah = async (req, res) => {
             pengelola: pengelola ? pengelola.trim() : null,
             kontak: kontak ? kontak.trim() : null,
             keterangan: keterangan ? keterangan.trim() : null,
-            foto_url: foto_url || null
+            foto: photoPaths,
+            foto_url: photoPaths[0] || null
         });
 
         // Catat Log Aktivitas
@@ -246,10 +306,19 @@ exports.createTempatSampah = async (req, res) => {
             newData: newFacility.toJSON()
         });
 
+        const createdJson = newFacility.toJSON();
+        const createdFoto = parseFotoList(createdJson.foto, createdJson.foto_url);
+
         return res.status(201).json({
             success: true,
             message: `Berhasil mendaftarkan fasilitas ${nama_tempat}.`,
-            data: newFacility
+            data: {
+                ...createdJson,
+                lat: parseFloat(createdJson.latitude),
+                lng: parseFloat(createdJson.longitude),
+                foto: createdFoto,
+                foto_url: createdFoto[0] || null
+            }
         });
     } catch (error) {
         console.error('Error createTempatSampah:', error);
@@ -335,7 +404,45 @@ exports.updateTempatSampah = async (req, res) => {
         if (pengelola !== undefined) updatePayload.pengelola = pengelola;
         if (kontak !== undefined) updatePayload.kontak = kontak;
         if (keterangan !== undefined) updatePayload.keterangan = keterangan;
-        if (foto_url !== undefined) updatePayload.foto_url = foto_url;
+
+        // Kelola Foto (Maksimal 4)
+        let hasPhotoUpdate = false;
+        let existingPhotos = [];
+        if (req.body.existing_foto !== undefined) {
+            hasPhotoUpdate = true;
+            let ef = req.body.existing_foto;
+            if (typeof ef === 'string') {
+                try { ef = JSON.parse(ef); } catch (e) { ef = [ef]; }
+            }
+            if (Array.isArray(ef)) existingPhotos = ef.filter(Boolean);
+        } else if (req.body.foto !== undefined && (!req.files || req.files.length === 0)) {
+            hasPhotoUpdate = true;
+            let f = req.body.foto;
+            if (typeof f === 'string') {
+                try { f = JSON.parse(f); } catch (e) { f = [f]; }
+            }
+            if (Array.isArray(f)) existingPhotos = f.filter(Boolean);
+        }
+
+        let newUploadedPhotos = [];
+        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+            hasPhotoUpdate = true;
+            newUploadedPhotos = req.files.map(f => `/uploads/tempat-sampah/${f.filename}`);
+            if (req.body.existing_foto === undefined && req.body.foto === undefined) {
+                existingPhotos = parseFotoList(item.foto, item.foto_url);
+            }
+        }
+
+        if (hasPhotoUpdate) {
+            const combined = [...existingPhotos, ...newUploadedPhotos].slice(0, 4);
+            updatePayload.foto = combined;
+            updatePayload.foto_url = combined[0] || null;
+        } else if (foto_url !== undefined) {
+            updatePayload.foto_url = foto_url;
+            if (updatePayload.foto === undefined) {
+                updatePayload.foto = foto_url ? [foto_url] : [];
+            }
+        }
 
         await item.update(updatePayload);
 
@@ -348,10 +455,19 @@ exports.updateTempatSampah = async (req, res) => {
             newData: item.toJSON()
         });
 
+        const updatedJson = item.toJSON();
+        const updatedFoto = parseFotoList(updatedJson.foto, updatedJson.foto_url);
+
         return res.status(200).json({
             success: true,
             message: `Fasilitas ${item.nama_tempat} berhasil diperbarui.`,
-            data: item
+            data: {
+                ...updatedJson,
+                lat: parseFloat(updatedJson.latitude),
+                lng: parseFloat(updatedJson.longitude),
+                foto: updatedFoto,
+                foto_url: updatedFoto[0] || null
+            }
         });
     } catch (error) {
         console.error('Error updateTempatSampah:', error);

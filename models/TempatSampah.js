@@ -69,7 +69,11 @@ module.exports = (sequelize, DataTypes) => {
     pengelola: DataTypes.STRING,
     kontak: DataTypes.STRING,
     keterangan: DataTypes.TEXT,
-    foto_url: DataTypes.STRING
+    foto: {
+      type: DataTypes.JSONB,
+      defaultValue: []
+    },
+    foto_url: DataTypes.TEXT
   }, {
     sequelize,
     modelName: 'TempatSampah',
