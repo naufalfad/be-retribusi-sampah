@@ -1,3 +1,4 @@
+require('dotenv').config();
 const https = require('https');
 
 // ============================================================================
@@ -97,6 +98,7 @@ let lastAqiFetchTime = 0;
 const AQI_CACHE_TTL = 15 * 60 * 1000; // 15 menit
 
 let cachedWildfires = null;
+let cachedWildfiresSource = 'NASA_FIRMS_LIVE';
 let lastWildfireFetchTime = 0;
 const WILDFIRE_CACHE_TTL = 15 * 60 * 1000; // 15 menit
 
@@ -139,30 +141,48 @@ function fetchIpv4(url, timeoutMs = 45000) {
  */
 exports.getWildfires = async (req, res) => {
     try {
+        const rawApiKey = process.env.FIRMS_MAP_KEY;
+        const apiKey = rawApiKey ? rawApiKey.replace(/^["']|["']$/g, '').trim() : '';
+
         const now = Date.now();
         if (cachedWildfires && (now - lastWildfireFetchTime < WILDFIRE_CACHE_TTL)) {
             return res.status(200).json({
                 success: true,
                 count: cachedWildfires.length,
-                source: 'NASA_FIRMS_LIVE',
+                source: cachedWildfiresSource || 'NASA_FIRMS_LIVE',
+                firmsMapKey: apiKey,
+                wmsUrl: apiKey ? `https://firms.modaps.eosdis.nasa.gov/mapserver/wms/fires/${apiKey}/` : null,
                 data: cachedWildfires
             });
         }
 
-        const apiKey = process.env.FIRMS_MAP_KEY;
-        if (!apiKey || apiKey.trim() === '') {
-            return res.status(400).json({
-                success: false,
-                error: 'FIRMS_MAP_KEY belum dikonfigurasi di file .env backend.'
+        if (!apiKey) {
+            console.warn('[FIRMS] FIRMS_MAP_KEY belum disetel di .env, beralih ke simulasi.');
+            const fallback = getBogorDefaultHotspots();
+            return res.status(200).json({
+                success: true,
+                count: fallback.length,
+                source: 'SIMULATED_HOTSPOT',
+                fallbackReason: 'FIRMS_MAP_KEY_NOT_CONFIGURED',
+                data: fallback
             });
         }
 
-        // Ambil data 1 hari terakhir (VIIRS SNPP NRT) untuk seluruh wilayah Indonesia
-        const firmsUrl = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${apiKey}/VIIRS_SNPP_NRT/95,-11,141,6/1`;
-        console.log('[FIRMS] Mengunduh data titik api aktif dari NASA FIRMS API...');
+        // Ambil data 2 hari terakhir (rolling 48 jam) VIIRS SNPP NRT untuk Indonesia
+        // Menggunakan 2 hari karena pada jam pagi (00:00 - 06:00 UTC), satelit belum melintas untuk hari ini sehingga data 1 hari kosong
+        const firmsUrl2Day = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${apiKey}/VIIRS_SNPP_NRT/95,-11,141,6/2`;
+        console.log('[FIRMS] Mengunduh data titik api aktif dari NASA FIRMS API (48 jam)...');
 
-        const resObj = await fetchIpv4(firmsUrl, 30000);
-        if (resObj.statusCode === 200 && resObj.data && !resObj.data.includes('Invalid API call')) {
+        let resObj;
+        try {
+            resObj = await fetchIpv4(firmsUrl2Day, 25000);
+        } catch (err2Day) {
+            console.warn(`[FIRMS] Query 2-hari lambat (${err2Day.message}), mencoba fallback 1-hari...`);
+            const firmsUrl1Day = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${apiKey}/VIIRS_SNPP_NRT/95,-11,141,6/1`;
+            resObj = await fetchIpv4(firmsUrl1Day, 15000);
+        }
+
+        if (resObj && resObj.statusCode === 200 && resObj.data && !resObj.data.includes('Invalid API call')) {
             const lines = resObj.data.trim().split('\n');
             const headers = lines[0].split(',').map(h => h.trim());
             const parsedPriority = [];
@@ -189,11 +209,15 @@ exports.getWildfires = async (req, res) => {
                         let locationLabel = `Koordinat: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
                         let isPriority = false;
 
-                        if (lat >= -7.5 && lat <= -5.5 && lng >= 106.0 && lng <= 108.0) {
-                            locationLabel = `Wilayah Pantauan Jawa Barat / Bogor (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+                        // Prioritas wilayah Jawa Barat / Jabodetabek
+                        if (lat >= -7.8 && lat <= -5.5 && lng >= 106.0 && lng <= 108.8) {
+                            locationLabel = `Wilayah Pantauan Jawa Barat (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
                             isPriority = true;
                         } else if (lat >= -5.0 && lat <= 4.5 && lng >= 108.5 && lng <= 119.5) {
                             locationLabel = `Wilayah Pantauan Kalimantan (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+                            isPriority = true;
+                        } else if (lat >= -6.0 && lat <= 6.0 && lng >= 95.0 && lng <= 106.0) {
+                            locationLabel = `Wilayah Pantauan Sumatera (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
                             isPriority = true;
                         }
 
@@ -221,40 +245,41 @@ exports.getWildfires = async (req, res) => {
                 }
             }
 
-            // Jika tidak ada titik api aktif di Kabupaten Bogor terdeteksi satelit NASA hari ini (kondisi normal),
-            // sertakan titik pantau terkalibrasi Kabupaten Bogor (Rumpin, Cigudeg, Cariu, Babakan Madang) agar sinkron dengan GEOLIMBAH
-            const hasBogorHotspot = parsedPriority.some(p => p.latitude >= -6.8 && p.latitude <= -6.3 && p.longitude >= 106.4 && p.longitude <= 107.25);
-            if (!hasBogorHotspot) {
-                parsedPriority.unshift(...getBogorDefaultHotspots());
-            }
-
             parsedPriority.sort((a, b) => b.frp - a.frp);
             parsedOthers.sort((a, b) => b.frp - a.frp);
 
-            const quota = Math.max(0, 2500 - parsedPriority.length);
-            const hotspots = [...parsedPriority, ...parsedOthers.slice(0, quota)];
+            const quota = Math.max(0, 3000 - parsedPriority.length);
+            let hotspots = [...parsedPriority, ...parsedOthers.slice(0, quota)];
+
+            // Hanya jika NASA FIRMS sama sekali tidak memiliki data titik api, beralih ke data simulasi
+            let responseSource = 'NASA_FIRMS_LIVE';
+            if (hotspots.length === 0) {
+                console.warn('[FIRMS] Data NASA FIRMS kosong, beralih ke simulasi.');
+                hotspots = getBogorDefaultHotspots();
+                responseSource = 'SIMULATED_HOTSPOT';
+            }
 
             cachedWildfires = hotspots;
+            cachedWildfiresSource = responseSource;
             lastWildfireFetchTime = now;
 
-            console.log(`[FIRMS] Berhasil memproses ${hotspots.length} titik api riil NASA FIRMS.`);
+            console.log(`[FIRMS] Berhasil memproses ${hotspots.length} titik api riil NASA FIRMS (source: ${responseSource}).`);
             return res.status(200).json({
                 success: true,
                 count: hotspots.length,
-                source: 'NASA_FIRMS_LIVE',
+                source: responseSource,
                 firmsMapKey: apiKey,
                 wmsUrl: `https://firms.modaps.eosdis.nasa.gov/mapserver/wms/fires/${apiKey}/`,
                 data: hotspots
             });
         } else {
-            console.warn('[FIRMS] Gagal respon NASA FIRMS, menggunakan titik pantau terkalibrasi');
+            console.warn('[FIRMS] Gagal respon NASA FIRMS, status:', resObj?.statusCode);
             const fallback = getBogorDefaultHotspots();
             return res.status(200).json({
                 success: true,
                 count: fallback.length,
                 source: 'SIMULATED_HOTSPOT',
-                firmsMapKey: apiKey,
-                wmsUrl: `https://firms.modaps.eosdis.nasa.gov/mapserver/wms/fires/${apiKey}/`,
+                fallbackReason: `HTTP_${resObj?.statusCode || 'FAIL'}`,
                 data: fallback
             });
         }
@@ -265,8 +290,7 @@ exports.getWildfires = async (req, res) => {
             success: true,
             count: fallback.length,
             source: 'SIMULATED_HOTSPOT',
-            firmsMapKey: process.env.FIRMS_MAP_KEY,
-            wmsUrl: null,
+            fallbackReason: err.message,
             data: fallback
         });
     }
